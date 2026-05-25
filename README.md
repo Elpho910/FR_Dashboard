@@ -135,7 +135,7 @@ The container publishes the board on `http://127.0.0.1:5000/` and uses `restart:
 
 ## Raspberry Pi install checklist
 
-These steps assume Raspberry Pi OS with a desktop environment and a normal user account such as `pi`.
+These steps assume Raspberry Pi OS with a desktop environment and a normal user account. The examples below assume the repo lives at `~/FR_Dashboard`, which resolves automatically to your home directory, such as `/home/ridgetech/FR_Dashboard`.
 
 ### 1. Install host packages
 
@@ -273,9 +273,9 @@ systemctl --user daemon-reload
 systemctl --user enable --now fr-dashboard-browser.service
 ```
 
-Before enabling either option, update the hard-coded repo path in these example files if your checkout is not `/home/pi/FR_Dashboard`.
+These updated launcher files assume the repo is checked out at `~/FR_Dashboard`. If you use a different folder name, update the path in the copied launcher file.
 
-The kiosk launcher script waits for `http://127.0.0.1:5000/` to respond before opening Chromium in kiosk mode, so the browser does not race the container startup.
+The kiosk launcher script waits for `http://127.0.0.1:5000/` to respond before opening Chromium in kiosk mode, and it auto-detects either `/usr/bin/chromium-browser` or `/usr/bin/chromium`.
 
 ## Current board behavior
 
