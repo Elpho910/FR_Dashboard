@@ -277,10 +277,12 @@ These updated launcher files assume the repo is checked out at `~/FR_Dashboard`.
 
 The kiosk launcher script waits for `http://127.0.0.1:5000/` to respond before opening Chromium in kiosk mode, and it auto-detects either `/usr/bin/chromium-browser` or `/usr/bin/chromium`.
 
+The launcher also starts Chromium with `--password-store=basic` to avoid Raspberry Pi keyring unlock prompts during kiosk startup. This is appropriate for a dedicated display device where Chromium is not being used as a personal browser, but it means Chromium will not use the desktop keyring for encrypted password storage.
+
 ## Current board behavior
 
 - The board only shows flights for the current airport-local day.
 - Arrived and departed flights remain visible for 30 minutes, then drop off automatically.
 - The browser refresh and backend cache both default to 2 hours so the demo does not burn API calls unnecessarily.
 - The backend combines scheduled and live arrivals/departures from FlightAware AeroAPI.
-- This repo is set up for a private proof-of-concept workflow, not a production deployment.
+
