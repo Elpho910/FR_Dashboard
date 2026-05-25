@@ -1,0 +1,9 @@
+services:
+  fr_dashboard:
+    build: .
+    container_name: fr_dashboard
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+    restart: unless-stopped

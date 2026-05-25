@@ -1,0 +1,15 @@
+[Unit]
+Description=FR Dashboard kiosk browser
+After=graphical-session.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+Environment=BOARD_URL=http://127.0.0.1:5000/
+ExecStart=/bin/bash /home/pi/FR_Dashboard/deploy/pi/fr-dashboard-kiosk.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

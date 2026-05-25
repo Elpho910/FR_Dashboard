@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
-"""FR24 Reporter — pull inbound/outbound flights for BWT from FlightRadar24."""
+"""FlightAware reporter for inbound and outbound airport traffic."""
+
+from __future__ import annotations
 
 import argparse
 import json
 import sys
 from dataclasses import asdict
 
-from fr24_reporter.flights import fetch_bwt_flights, AIRPORT_CODE
+from dotenv import load_dotenv
+
+from fr24_reporter.flights import AIRPORT_CODE, fetch_bwt_flights
 from fr24_reporter.report import print_report
+
+load_dotenv()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Fetch inbound/outbound flights from FlightRadar24 for a given airport."
+        description="Fetch inbound and outbound flights from FlightAware AeroAPI for an airport."
     )
     parser.add_argument(
         "--airport",
         default=AIRPORT_CODE,
-        help=f"IATA airport code (default: {AIRPORT_CODE})",
+        help=f"IATA or ICAO airport code (default: {AIRPORT_CODE})",
     )
     parser.add_argument(
         "--json",

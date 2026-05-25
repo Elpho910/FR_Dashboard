@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=FR Dashboard Kiosk
+Exec=/bin/bash /home/pi/FR_Dashboard/deploy/pi/fr-dashboard-kiosk.sh
+X-GNOME-Autostart-enabled=true
