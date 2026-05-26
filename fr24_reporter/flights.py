@@ -213,18 +213,28 @@ def _status_text(flight: dict[str, Any], direction: str) -> str:
 
 
 def _operator_display_name(flight: dict[str, Any]) -> Optional[str]:
-    for key in ("operator", "operator_name", "airline", "airline_name"):
-        value = flight.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+    for key in ("operator_name", "airline_name", "operator", "airline"):
+        value = _friendly_operator_name(flight.get(key))
+        if value:
+            return value
 
-    operator_code = flight.get("operator_iata") or flight.get("operator_icao")
-    if isinstance(operator_code, str):
-        operator_code = operator_code.strip()
-        if operator_code:
-            return OPERATOR_NAME_ALIASES.get(operator_code, operator_code)
+    for key in ("operator_iata", "operator_icao"):
+        value = _friendly_operator_name(flight.get(key))
+        if value:
+            return value
 
     return None
+
+
+def _friendly_operator_name(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+
+    return OPERATOR_NAME_ALIASES.get(cleaned, cleaned)
 
 
 def _pick_first_time(flight: dict[str, Any], *keys: str) -> Optional[int]:
