@@ -19,6 +19,16 @@ AIRPORT_CODE = "BWT"
 AIRPORT_ID_ALIASES = {
     "BWT": "YWYY",  # FlightAware recommends canonical airport IDs when possible.
 }
+OPERATOR_NAME_ALIASES = {
+    "QF": "QantasLink",
+    "QLK": "QantasLink",
+    "Rex": "Regional Express",
+    "REX": "Regional Express",
+    "RXA": "Regional Express",
+    "ZL": "Sharp Airlines",
+    "SH": "Sharp Airlines",
+    "SHA": "Sharp Airlines",
+}
 API_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 DEFAULT_CACHE_SECONDS = 7200
 DEFAULT_COMPLETED_RETENTION_MINUTES = 30
@@ -159,7 +169,7 @@ def _parse_aeroapi_flight(flight: dict[str, Any], direction: str) -> FlightInfo:
 
     flight_number = flight.get("ident_iata") or flight.get("ident")
     callsign = flight.get("ident_icao") or flight.get("ident")
-    airline = flight.get("operator_iata") or flight.get("operator_icao") or flight.get("operator")
+    airline = _operator_display_name(flight)
 
     return FlightInfo(
         flight_id=flight.get("fa_flight_id") or flight.get("ident") or "",
@@ -200,6 +210,21 @@ def _status_text(flight: dict[str, Any], direction: str) -> str:
     if flight.get("estimated_out") or flight.get("estimated_off"):
         return "Expected"
     return "Scheduled"
+
+
+def _operator_display_name(flight: dict[str, Any]) -> Optional[str]:
+    for key in ("operator", "operator_name", "airline", "airline_name"):
+        value = flight.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    operator_code = flight.get("operator_iata") or flight.get("operator_icao")
+    if isinstance(operator_code, str):
+        operator_code = operator_code.strip()
+        if operator_code:
+            return OPERATOR_NAME_ALIASES.get(operator_code, operator_code)
+
+    return None
 
 
 def _pick_first_time(flight: dict[str, Any], *keys: str) -> Optional[int]:
