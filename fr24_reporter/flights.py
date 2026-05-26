@@ -159,16 +159,16 @@ def _parse_aeroapi_flight(flight: dict[str, Any], direction: str) -> FlightInfo:
     destination = flight.get("destination") or {}
 
     if direction == "inbound":
-        scheduled_time = _pick_first_time(flight, "scheduled_in", "scheduled_on")
-        estimated_time = _pick_first_time(flight, "estimated_in", "estimated_on")
-        real_time = _pick_first_time(flight, "actual_in", "actual_on")
+        scheduled_time = _pick_first_time(flight, "scheduled_on", "scheduled_in")
+        estimated_time = _pick_first_time(flight, "estimated_on", "estimated_in")
+        real_time = _pick_first_time(flight, "actual_on", "actual_in")
     else:
-        scheduled_time = _pick_first_time(flight, "scheduled_out", "scheduled_off")
-        estimated_time = _pick_first_time(flight, "estimated_out", "estimated_off")
-        real_time = _pick_first_time(flight, "actual_out", "actual_off")
+        scheduled_time = _pick_first_time(flight, "scheduled_off", "scheduled_out")
+        estimated_time = _pick_first_time(flight, "estimated_off", "estimated_out")
+        real_time = _pick_first_time(flight, "actual_off", "actual_out")
 
-    flight_number = flight.get("ident_iata") or flight.get("ident")
-    callsign = flight.get("ident_icao") or flight.get("ident")
+    flight_number = flight.get("ident_icao") or flight.get("ident") or flight.get("ident_iata")
+    callsign = flight.get("ident") or flight.get("ident_icao") or flight.get("ident_iata")
     airline = _operator_display_name(flight)
 
     return FlightInfo(
