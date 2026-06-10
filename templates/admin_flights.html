@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FR Dashboard Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <main class="mx-auto max-w-7xl px-4 py-6">
+    <header class="flex flex-col gap-3 border-b border-slate-800 pb-4 md:flex-row md:items-end md:justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-[0.3em] text-slate-500">FR Dashboard Admin</div>
+        <h1 class="mt-2 text-2xl font-semibold text-white">{{ airport }} Time Overrides</h1>
+        <p class="mt-2 text-sm text-slate-400">
+          FlightAware remains the primary source. Manual estimated-time overrides sit on top and survive refreshes.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="?airport={{ airport }}&refresh=1" class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-sky-400 hover:text-white">
+          Force Refresh
+        </a>
+        <a href="./?airport={{ airport }}" class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-sky-400 hover:text-white">
+          Open Board
+        </a>
+        <a href="admin/logout" class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-red-400 hover:text-white">
+          Log Out
+        </a>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <section class="mt-4 space-y-2">
+          {% for category, message in messages %}
+            <div class="rounded-lg border px-3 py-2 text-sm {{ 'border-red-500/30 bg-red-500/10 text-red-100' if category == 'error' else 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' }}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </section>
+      {% endif %}
+    {% endwith %}
+
+    <section class="mt-6 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/70">
+      <table class="min-w-full divide-y divide-slate-800">
+        <thead class="bg-slate-900/90 text-left text-xs uppercase tracking-[0.18em] text-slate-400">
+          <tr>
+            <th class="px-4 py-3">Flight</th>
+            <th class="px-4 py-3">Direction</th>
+            <th class="px-4 py-3">Operator</th>
+            <th class="px-4 py-3">Route</th>
+            <th class="px-4 py-3">Scheduled</th>
+            <th class="px-4 py-3">API Estimate</th>
+            <th class="px-4 py-3">Manual Override</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800 text-sm text-slate-100">
+          {% for flight in flights %}
+            <tr class="align-top">
+              <td class="px-4 py-3 font-medium text-white">
+                {{ flight.flight_number or flight.callsign or '—' }}
+              </td>
+              <td class="px-4 py-3 text-slate-300">
+                {{ 'Arrival' if flight.direction == 'inbound' else 'Departure' }}
+              </td>
+              <td class="px-4 py-3 text-slate-300">{{ flight.airline or '—' }}</td>
+              <td class="px-4 py-3 text-slate-300">
+                {% if flight.direction == 'inbound' %}
+                  {{ flight.origin_iata or '—' }} → {{ airport }}
+                {% else %}
+                  {{ airport }} → {{ flight.destination_iata or '—' }}
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 font-mono text-slate-200">{{ format_unix_local(flight.scheduled_time) }}</td>
+              <td class="px-4 py-3 font-mono text-slate-200">{{ format_unix_local(flight.api_estimated_time) }}</td>
+              <td class="px-4 py-3">
+                <div class="font-mono text-slate-100">{{ format_unix_local(flight.override_estimated_time) }}</div>
+                {% if flight.override_active %}
+                  <div class="mt-1 inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-amber-100">
+                    Override Active
+                  </div>
+                {% endif %}
+                {% if flight.api_matches_override %}
+                  <div class="mt-1 inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100">
+                    API Matches
+                  </div>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-slate-300">{{ flight.status_text or '—' }}</td>
+              <td class="px-4 py-3">
+                <form method="post" action="admin/override" class="space-y-2">
+                  <input type="hidden" name="airport" value="{{ airport }}" />
+                  <input type="hidden" name="flight_key" value="{{ flight.flight_key }}" />
+                  <input
+                    type="time"
+                    name="override_estimated_time"
+                    value="{{ format_unix_local(flight.override_estimated_time) if flight.override_estimated_time else '' }}"
+                    class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-white outline-none focus:border-sky-400"
+                  />
+                  <input
+                    type="text"
+                    name="override_note"
+                    value="{{ flight.override_note or '' }}"
+                    placeholder="Reason or note"
+                    class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-white outline-none focus:border-sky-400"
+                  />
+                  <div class="flex gap-2">
+                    <button
+                      type="submit"
+                      name="action"
+                      value="save"
+                      class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-sky-400"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="submit"
+                      name="action"
+                      value="clear"
+                      class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-red-400 hover:text-white"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="9" class="px-4 py-8 text-center text-sm uppercase tracking-[0.18em] text-slate-500">
+                No flights loaded for today.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

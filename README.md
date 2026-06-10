@@ -17,9 +17,12 @@ The default airport code is `BWT`. For FlightAware calls, the app maps `BWT` to 
 ├── main.py                          # CLI entry point
 ├── fr24_reporter/
 │   ├── flights.py                   # FlightAware fetch + normalization logic
-│   └── report.py                    # Terminal report formatting
+│   ├── report.py                    # Terminal report formatting
+│   └── store.py                     # SQLite sync and override persistence
 ├── templates/
-│   └── index.html                   # Frontend UI served by Flask
+│   ├── index.html                   # Frontend UI served by Flask
+│   ├── admin_login.html             # Admin login page
+│   └── admin_flights.html           # Override management page
 ├── deploy/pi/
 │   ├── fr-dashboard-kiosk.sh        # Chromium kiosk launcher
 │   ├── fr-dashboard-browser.service # Example user systemd service
@@ -50,10 +53,15 @@ Environment variables:
 
 - `FLIGHTAWARE_API_KEY`: your FlightAware AeroAPI key
 - `FLIGHT_BOARD_REFRESH_SECONDS`: browser refresh cadence in seconds, default `7200`
-- `FLIGHTAWARE_CACHE_SECONDS`: backend cache lifetime in seconds, default `7200`
+- `FLIGHTAWARE_CACHE_SECONDS`: backend sync throttle in seconds, default `7200`
+- `FLIGHT_DB_PATH`: SQLite file path, default `data/fr_dashboard.sqlite3`
 - `HOST`: web bind host, default `0.0.0.0`
 - `PORT`: web port, default `5000`
 - `FLASK_DEBUG`: set to `1` for local debug mode, `0` for container/kiosk use
+- `FLASK_SECRET_KEY`: Flask session secret for the admin login
+- `ADMIN_USERNAME`: admin login username
+- `ADMIN_PASSWORD`: admin login password for internal use
+- `ADMIN_PASSWORD_HASH`: optional password-hash alternative to `ADMIN_PASSWORD`
 - `AIRPORT_TIMEZONE`: airport local timezone for filtering and display, default `Australia/Hobart`
 - `FLIGHT_COMPLETED_RETENTION_MINUTES`: how long an arrived/departed flight remains visible, default `30`
 
@@ -89,7 +97,30 @@ Useful routes:
 - Frontend UI: `http://127.0.0.1:5000/`
 - Frontend UI for another airport: `http://127.0.0.1:5000/?airport=BWT`
 - JSON API: `http://127.0.0.1:5000/api/flights`
-- JSON API for another airport: `http://127.0.0.1:5000/api/flights?airport=BWT`
+- Force-sync JSON API: `http://127.0.0.1:5000/api/flights?refresh=1`
+- Admin login: `http://127.0.0.1:5000/admin/login`
+- Admin overrides: `http://127.0.0.1:5000/admin`
+
+## Admin overrides
+
+The board remains FlightAware-driven, but estimated times can be manually corrected without losing the rest of the live updates.
+
+How it works:
+
+- The app syncs today's flights into SQLite.
+- Manual estimated-time overrides are stored separately and survive API refreshes.
+- When a flight has an actual time, the board still shows the actual time first.
+- Status, aircraft, and other API fields continue updating even while an estimated-time override is active.
+
+Use the admin panel to:
+
+- sign in with the username and password from `.env`
+- review today's flights
+- enter a corrected estimated time in `HH:MM`
+- clear an override when it is no longer needed
+- force a fresh FlightAware sync from the admin page
+
+SQLite data is stored in `data/fr_dashboard.sqlite3` by default.
 
 ## Run the CLI reporter
 
@@ -131,7 +162,7 @@ Stop it:
 docker compose down
 ```
 
-The container publishes the board on `http://127.0.0.1:5000/` and uses `restart: unless-stopped`, so once it has been started it will come back after a reboot as long as Docker starts normally.
+The container publishes the board on `http://127.0.0.1:5000/`, persists SQLite data through `./data:/app/data`, and uses `restart: unless-stopped`, so once it has been started it will come back after a reboot as long as Docker starts normally.
 
 ## Raspberry Pi install checklist
 

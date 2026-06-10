@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import os
-import time
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from threading import Lock
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
@@ -25,18 +24,13 @@ OPERATOR_NAME_ALIASES = {
     "Rex": "Regional Express",
     "REX": "Regional Express",
     "RXA": "Regional Express",
-    "ZL": "Sharp Airlines",
+    "ZL": "Regional Express",
     "SH": "Sharp Airlines",
     "SHA": "Sharp Airlines",
 }
 API_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
-DEFAULT_CACHE_SECONDS = 7200
 DEFAULT_COMPLETED_RETENTION_MINUTES = 30
 DEFAULT_AIRPORT_TIMEZONE = "Australia/Hobart"
-
-_CACHE: dict[str, tuple[float, dict[str, list["FlightInfo"]]]] = {}
-_CACHE_LOCK = Lock()
-
 
 @dataclass
 class FlightInfo:
@@ -62,13 +56,6 @@ class FlightInfo:
 def fetch_bwt_flights(airport_code: str = AIRPORT_CODE) -> dict[str, list[FlightInfo]]:
     """Return inbound and outbound flights for the given airport code."""
     normalized_code = airport_code.strip().upper()
-    cache_seconds = _cache_seconds()
-    now = time.time()
-
-    with _CACHE_LOCK:
-        cached = _CACHE.get(normalized_code)
-        if cached and now - cached[0] < cache_seconds:
-            return cached[1]
 
     airport_id = AIRPORT_ID_ALIASES.get(normalized_code, normalized_code)
     payloads = _fetch_airport_payloads(airport_id)
@@ -88,10 +75,7 @@ def fetch_bwt_flights(airport_code: str = AIRPORT_CODE) -> dict[str, list[Flight
         direction="outbound",
     )
 
-    result = {"inbound": inbound, "outbound": outbound}
-    with _CACHE_LOCK:
-        _CACHE[normalized_code] = (now, result)
-    return result
+    return {"inbound": inbound, "outbound": outbound}
 
 
 def _fetch_airport_payloads(airport_id: str) -> dict[str, dict[str, Any]]:
@@ -223,7 +207,23 @@ def _operator_display_name(flight: dict[str, Any]) -> Optional[str]:
         if value:
             return value
 
+    for key in ("ident_icao", "ident_iata", "ident"):
+        value = _operator_name_from_ident(flight.get(key))
+        if value:
+            return value
+
     return None
+
+
+def _operator_name_from_ident(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+
+    match = re.match(r"([A-Za-z]{2,3})", value.strip())
+    if not match:
+        return None
+
+    return _friendly_operator_name(match.group(1))
 
 
 def _friendly_operator_name(value: Any) -> Optional[str]:

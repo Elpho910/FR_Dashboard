@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FR Dashboard Admin Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+  <main class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-2xl">
+    <div class="mb-6">
+      <div class="text-xs uppercase tracking-[0.3em] text-slate-400">FR Dashboard</div>
+      <h1 class="mt-2 text-2xl font-semibold text-white">Admin Login</h1>
+      <p class="mt-2 text-sm text-slate-400">Sign in to manage manual estimated-time overrides.</p>
+    </div>
+
+    {% if not admin_configured %}
+      <div class="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+        Set <code class="font-mono">ADMIN_PASSWORD</code> or <code class="font-mono">ADMIN_PASSWORD_HASH</code> in <code class="font-mono">.env</code> before using the admin panel.
+      </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-4 space-y-2">
+          {% for category, message in messages %}
+            <div class="rounded-lg border px-3 py-2 text-sm {{ 'border-red-500/30 bg-red-500/10 text-red-100' if category == 'error' else 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' }}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" class="space-y-4">
+      <input type="hidden" name="next" value="{{ next_url }}" />
+      <label class="block">
+        <span class="mb-1 block text-sm text-slate-300">Username</span>
+        <input
+          type="text"
+          name="username"
+          autocomplete="username"
+          class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-sky-400"
+          required
+        />
+      </label>
+      <label class="block">
+        <span class="mb-1 block text-sm text-slate-300">Password</span>
+        <input
+          type="password"
+          name="password"
+          autocomplete="current-password"
+          class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-sky-400"
+          required
+        />
+      </label>
+      <button
+        type="submit"
+        class="w-full rounded-lg bg-sky-500 px-4 py-2 font-medium text-slate-950 transition hover:bg-sky-400"
+      >
+        Sign In
+      </button>
+    </form>
+  </main>
+</body>
+</html>

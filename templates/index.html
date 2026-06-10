@@ -99,7 +99,7 @@
           <span>Operator</span>
           <span>From</span>
           <span class="text-center">Time</span>
-          <span class="text-right">Remarks</span>
+          <span class="text-right">Status</span>
         </div>
         <div id="arrivals-body">
           <div class="text-board-muted text-center py-5 text-sm tracking-[0.18em] uppercase">Loading…</div>
@@ -120,7 +120,7 @@
           <span>Operator</span>
           <span>To</span>
           <span class="text-center">Time</span>
-          <span class="text-right">Remarks</span>
+          <span class="text-right">Status</span>
         </div>
         <div id="departures-body">
           <div class="text-board-muted text-center py-5 text-sm tracking-[0.18em] uppercase">Loading…</div>
@@ -172,8 +172,9 @@
     }
 
     function resolveTime(f) {
-      if (f.real_time) {
-        return { display: fmtTime(f.real_time), cssClass: 'text-board-green font-bold', prefix: 'ACT' };
+      const actualTime = f.actual_time || f.real_time;
+      if (actualTime) {
+        return { display: fmtTime(actualTime), cssClass: 'text-board-green font-bold', prefix: 'ACT' };
       }
       if (f.estimated_time) {
         const sched = fmtTime(f.scheduled_time);
@@ -183,7 +184,6 @@
           display: est,
           cssClass: changed ? 'text-board-amber font-bold' : 'text-board-text',
           prefix: changed ? 'EST' : 'SCH',
-          strikethrough: changed ? sched : null,
         };
       }
       if (f.scheduled_time) {
@@ -194,16 +194,12 @@
 
     function timeCell(f) {
       const t = resolveTime(f);
-      const strike = t.strikethrough
-        ? `<span class="line-through text-board-muted text-xs block leading-none">${t.strikethrough}</span>`
-        : '';
       const label = t.prefix
         ? `<span class="text-board-muted text-[10px] block leading-none tracking-wider">${t.prefix}</span>`
         : '';
       return `<span class="flex flex-col items-center tabular-nums font-mono ${t.cssClass}">
                 ${label}
                 <span class="text-base md:text-lg leading-none">${t.display}</span>
-                ${strike}
               </span>`;
     }
 
@@ -248,8 +244,7 @@
     async function loadFlights() {
       document.getElementById('status-text').textContent = "Refreshing today's flights…";
       try {
-        const apiUrl = new URL('api/flights', window.location.href);
-        apiUrl.searchParams.set('airport', AIRPORT);
+        const apiUrl = `./api/flights?airport=${encodeURIComponent(AIRPORT)}`;
         const res = await fetch(apiUrl);
         const data = await res.json().catch(() => null);
         if (!res.ok) {
