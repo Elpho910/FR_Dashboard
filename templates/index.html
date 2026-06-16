@@ -93,9 +93,8 @@
         <span class="text-board-muted text-[10px] tracking-[0.16em] uppercase" id="arrivals-count"></span>
       </div>
       <div class="border border-board-border rounded overflow-hidden shadow-[0_0_25px_rgba(0,0,0,0.25)]">
-        <div class="grid grid-cols-[1.25fr_1fr_1.7fr_1fr_1.1fr_1.2fr] bg-board-header border-b border-board-border text-board-sub text-[11px] tracking-[0.28em] uppercase px-3 py-1.5">
+        <div class="grid grid-cols-[1.3fr_1.9fr_1fr_1.1fr_1.2fr] bg-board-header border-b border-board-border text-board-sub text-[11px] tracking-[0.28em] uppercase px-3 py-1.5">
           <span>Flight</span>
-          <span>Aircraft</span>
           <span>Operator</span>
           <span>From</span>
           <span class="text-center">Time</span>
@@ -114,9 +113,8 @@
         <span class="text-board-muted text-[10px] tracking-[0.16em] uppercase" id="departures-count"></span>
       </div>
       <div class="border border-board-border rounded overflow-hidden shadow-[0_0_25px_rgba(0,0,0,0.25)]">
-        <div class="grid grid-cols-[1.25fr_1fr_1.7fr_1fr_1.1fr_1.2fr] bg-board-header border-b border-board-border text-board-sub text-[11px] tracking-[0.28em] uppercase px-4 py-2">
+        <div class="grid grid-cols-[1.3fr_1.9fr_1fr_1.1fr_1.2fr] bg-board-header border-b border-board-border text-board-sub text-[11px] tracking-[0.28em] uppercase px-4 py-2">
           <span>Flight</span>
-          <span>Aircraft</span>
           <span>Operator</span>
           <span>To</span>
           <span class="text-center">Time</span>
@@ -130,7 +128,7 @@
   </main>
 
   <footer class="text-center text-board-muted text-[10px] py-2 border-t border-board-border mt-2 tracking-[0.16em] uppercase">
-    FlightAware AeroAPI · Today only · Proof of Concept Demo
+    {{ provider_label }} · Today only · Proof of Concept Demo
   </footer>
 
   <script>
@@ -223,16 +221,14 @@
       return flights.map((f, i) => {
         const rowClass = i % 2 === 0 ? 'row-even' : 'row-odd';
         const ident = f.flight_number || f.callsign || '—';
-        const aircraft = f.aircraft_type || '—';
         const airline = f.airline || '—';
         const location = f[locationKey] || '—';
         const accentColor = direction === 'inbound' ? 'text-board-green' : 'text-board-amber';
         return `
-          <div class="grid grid-cols-[1.25fr_1fr_1.7fr_1fr_1.1fr_1.2fr] ${rowClass}
+          <div class="grid grid-cols-[1.3fr_1.9fr_1fr_1.1fr_1.2fr] ${rowClass}
                       px-3 py-2.5 border-b border-board-border last:border-b-0
                       hover:bg-board-border transition-colors duration-150 items-center">
             <span class="font-bold text-board-text tracking-[0.18em] text-sm md:text-base">${ident}</span>
-            <span class="text-board-sub text-sm">${aircraft}</span>
             <span class="text-board-sub truncate text-sm uppercase tracking-[0.14em]">${airline}</span>
             <span class="font-semibold ${accentColor} tracking-[0.24em] text-sm md:text-base">${location}</span>
             <span class="flex justify-center">${timeCell(f)}</span>

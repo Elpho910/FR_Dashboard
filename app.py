@@ -21,7 +21,7 @@ from flask import (
 )
 from werkzeug.security import check_password_hash
 
-from fr24_reporter.flights import AIRPORT_CODE
+from fr24_reporter.flights import AIRPORT_CODE, get_provider_label
 from fr24_reporter.store import (
     clear_estimated_override,
     get_admin_flights,
@@ -94,6 +94,7 @@ def index():
         airport=airport,
         refresh_interval=REFRESH_SECONDS,
         airport_timezone=AIRPORT_TIMEZONE,
+        provider_label=get_provider_label(),
     )
 
 

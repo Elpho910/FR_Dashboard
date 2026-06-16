@@ -1,4 +1,4 @@
-"""FlightAware AeroAPI fetching and normalization."""
+"""Flight-provider fetching and normalization."""
 
 from __future__ import annotations
 
@@ -15,8 +15,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 AIRPORT_CODE = "BWT"
-AIRPORT_ID_ALIASES = {
+FLIGHTAWARE_AIRPORT_ID_ALIASES = {
     "BWT": "YWYY",  # FlightAware recommends canonical airport IDs when possible.
+}
+AERODATABOX_AIRPORT_ID_ALIASES = {
+    "BWT": "YWYY",  # AeroDataBox feed health and schedule calls work best with the ICAO code.
 }
 OPERATOR_NAME_ALIASES = {
     "QF": "QantasLink",
@@ -25,12 +28,21 @@ OPERATOR_NAME_ALIASES = {
     "REX": "Regional Express",
     "RXA": "Regional Express",
     "ZL": "Regional Express",
+    "Sharp": "Sharp Airlines",
     "SH": "Sharp Airlines",
     "SHA": "Sharp Airlines",
 }
-API_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
+FLIGHTAWARE_API_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
+AERODATABOX_API_MARKET_BASE_URL = "https://prod.api.market/api/v1/aedbx/aerodatabox"
+AERODATABOX_RAPIDAPI_BASE_URL = "https://aerodatabox.p.rapidapi.com"
+AERODATABOX_RAPIDAPI_HOST = "aerodatabox.p.rapidapi.com"
+DEFAULT_PROVIDER = "flightaware"
+DEFAULT_AERODATABOX_MARKETPLACE = "apimarket"
 DEFAULT_COMPLETED_RETENTION_MINUTES = 30
 DEFAULT_AIRPORT_TIMEZONE = "Australia/Hobart"
+AERODATABOX_MAX_WINDOW_HOURS = 12
+_COMPLETED_STATUSES = {"Arrived", "Departed"}
+
 
 @dataclass
 class FlightInfo:
@@ -54,11 +66,34 @@ class FlightInfo:
 
 
 def fetch_bwt_flights(airport_code: str = AIRPORT_CODE) -> dict[str, list[FlightInfo]]:
-    """Return inbound and outbound flights for the given airport code."""
-    normalized_code = airport_code.strip().upper()
+    """Return inbound and outbound flights from the configured provider."""
+    provider = get_provider_name()
+    if provider == "flightaware":
+        return _fetch_flightaware_flights(airport_code)
+    if provider == "aerodatabox":
+        return _fetch_aerodatabox_flights(airport_code)
+    raise RuntimeError(
+        f"Unsupported FLIGHT_DATA_PROVIDER '{provider}'. Expected 'flightaware' or 'aerodatabox'."
+    )
 
-    airport_id = AIRPORT_ID_ALIASES.get(normalized_code, normalized_code)
-    payloads = _fetch_airport_payloads(airport_id)
+
+def get_provider_name() -> str:
+    return os.getenv("FLIGHT_DATA_PROVIDER", DEFAULT_PROVIDER).strip().lower() or DEFAULT_PROVIDER
+
+
+def get_provider_label() -> str:
+    provider = get_provider_name()
+    if provider == "aerodatabox":
+        return "AeroDataBox"
+    if provider == "flightaware":
+        return "FlightAware AeroAPI"
+    return provider
+
+
+def _fetch_flightaware_flights(airport_code: str) -> dict[str, list[FlightInfo]]:
+    normalized_code = airport_code.strip().upper()
+    airport_id = FLIGHTAWARE_AIRPORT_ID_ALIASES.get(normalized_code, normalized_code)
+    payloads = _fetch_flightaware_airport_payloads(airport_id)
 
     inbound = _merge_flights(
         payloads=(
@@ -66,6 +101,8 @@ def fetch_bwt_flights(airport_code: str = AIRPORT_CODE) -> dict[str, list[Flight
             ("arrivals", payloads["arrivals"]),
         ),
         direction="inbound",
+        parser=_parse_flightaware_flight,
+        airport_code=normalized_code,
     )
     outbound = _merge_flights(
         payloads=(
@@ -73,16 +110,18 @@ def fetch_bwt_flights(airport_code: str = AIRPORT_CODE) -> dict[str, list[Flight
             ("departures", payloads["departures"]),
         ),
         direction="outbound",
+        parser=_parse_flightaware_flight,
+        airport_code=normalized_code,
     )
 
     return {"inbound": inbound, "outbound": outbound}
 
 
-def _fetch_airport_payloads(airport_id: str) -> dict[str, dict[str, Any]]:
-    start, end = _time_window()
+def _fetch_flightaware_airport_payloads(airport_id: str) -> dict[str, dict[str, Any]]:
+    start, end = _time_window_utc()
     headers = {
         "Accept": "application/json",
-        "x-apikey": _require_api_key(),
+        "x-apikey": _require_flightaware_api_key(),
     }
     params = {
         "start": start,
@@ -98,7 +137,7 @@ def _fetch_airport_payloads(airport_id: str) -> dict[str, dict[str, Any]]:
         "departures",
     ):
         response = requests.get(
-            f"{API_BASE_URL}/airports/{airport_id}/flights/{endpoint}",
+            f"{FLIGHTAWARE_API_BASE_URL}/airports/{airport_id}/flights/{endpoint}",
             headers=headers,
             params=params,
             timeout=20,
@@ -108,14 +147,260 @@ def _fetch_airport_payloads(airport_id: str) -> dict[str, dict[str, Any]]:
     return payloads
 
 
+def _fetch_aerodatabox_flights(airport_code: str) -> dict[str, list[FlightInfo]]:
+    normalized_code = airport_code.strip().upper()
+    code_type, lookup_code = _aerodatabox_airport_lookup(normalized_code)
+    headers = _aerodatabox_headers()
+
+    arrivals: list[dict[str, Any]] = []
+    departures: list[dict[str, Any]] = []
+    for from_local, to_local in _aerodatabox_time_windows_local():
+        response = requests.get(
+            f"{_aerodatabox_base_url()}/flights/airports/{code_type}/{lookup_code}/{from_local}/{to_local}",
+            headers=headers,
+            params={
+                "withLeg": "true",
+                "withCancelled": "true",
+                "withCodeshared": "false",
+                "withCargo": "true",
+                "withPrivate": "true",
+                "withLocation": "false",
+            },
+            timeout=20,
+        )
+        if response.status_code == 204:
+            continue
+        response.raise_for_status()
+        payload = response.json()
+        arrivals.extend(payload.get("arrivals") or [])
+        departures.extend(payload.get("departures") or [])
+
+    inbound = _normalize_aerodatabox_flights(arrivals, "inbound", normalized_code)
+    outbound = _normalize_aerodatabox_flights(departures, "outbound", normalized_code)
+    return {"inbound": inbound, "outbound": outbound}
+
+
+def _normalize_aerodatabox_flights(
+    flights: list[dict[str, Any]],
+    direction: str,
+    airport_code: str,
+) -> list[FlightInfo]:
+    merged: dict[str, FlightInfo] = {}
+    for flight in flights:
+        info = _parse_aerodatabox_flight(flight, direction, airport_code)
+        dedupe_key = info.flight_id or (
+            f"{info.flight_number}:{info.direction}:{info.scheduled_time or info.estimated_time or info.real_time}"
+        )
+        existing = merged.get(dedupe_key)
+        if existing is None or _flight_rank(info) > _flight_rank(existing):
+            merged[dedupe_key] = info
+
+    ordered = sorted(merged.values(), key=_best_time)
+    return [flight for flight in ordered if _is_relevant(flight)]
+
+
+def _aerodatabox_airport_lookup(airport_code: str) -> tuple[str, str]:
+    lookup_code = AERODATABOX_AIRPORT_ID_ALIASES.get(airport_code, airport_code)
+    code_type = "icao" if len(lookup_code) == 4 else "iata"
+    return code_type, lookup_code
+
+
+def _aerodatabox_headers() -> dict[str, str]:
+    marketplace = os.getenv("AERODATABOX_MARKETPLACE", DEFAULT_AERODATABOX_MARKETPLACE).strip().lower()
+    api_key = _require_aerodatabox_api_key()
+    if marketplace == "rapidapi":
+        return {
+            "Accept": "application/json",
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": os.getenv("AERODATABOX_RAPIDAPI_HOST", AERODATABOX_RAPIDAPI_HOST),
+        }
+    if marketplace == "apimarket":
+        return {
+            "Accept": "application/json",
+            "x-magicapi-key": api_key,
+        }
+    raise RuntimeError(
+        f"Unsupported AERODATABOX_MARKETPLACE '{marketplace}'. Expected 'apimarket' or 'rapidapi'."
+    )
+
+
+def _aerodatabox_base_url() -> str:
+    explicit = os.getenv("AERODATABOX_BASE_URL")
+    if explicit:
+        return explicit.rstrip("/")
+
+    marketplace = os.getenv("AERODATABOX_MARKETPLACE", DEFAULT_AERODATABOX_MARKETPLACE).strip().lower()
+    if marketplace == "rapidapi":
+        return AERODATABOX_RAPIDAPI_BASE_URL
+    return AERODATABOX_API_MARKET_BASE_URL
+
+
+def _aerodatabox_time_windows_local() -> list[tuple[str, str]]:
+    airport_tz = _airport_timezone()
+    now_local = datetime.now(airport_tz)
+    start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    midday_local = start_local + timedelta(hours=AERODATABOX_MAX_WINDOW_HOURS)
+    end_local = start_local + timedelta(days=1) - timedelta(minutes=1)
+    return [
+        (_format_local_minute(start_local), _format_local_minute(midday_local)),
+        (_format_local_minute(midday_local), _format_local_minute(end_local)),
+    ]
+
+
+def _format_local_minute(value: datetime) -> str:
+    return value.strftime("%Y-%m-%dT%H:%M")
+
+
+def _parse_aerodatabox_flight(
+    flight: dict[str, Any],
+    direction: str,
+    airport_code: str,
+) -> FlightInfo:
+    movement = _aerodatabox_movement(flight, direction)
+    opposite = _aerodatabox_opposite_movement(flight, direction)
+
+    scheduled_time = _pick_aerodatabox_time(movement, "scheduledTime")
+    estimated_time = _pick_aerodatabox_time(movement, "revisedTime")
+    runway_time = _pick_aerodatabox_time(movement, "runwayTime")
+    status_text = _aerodatabox_status_text(
+        flight.get("status"),
+        direction=direction,
+        scheduled_time=scheduled_time,
+        estimated_time=estimated_time,
+        runway_time=runway_time,
+    )
+
+    real_time = None
+    if status_text in _COMPLETED_STATUSES:
+        real_time = runway_time or estimated_time
+
+    airline = _aerodatabox_airline_name(flight)
+    flight_number = flight.get("number") or flight.get("callSign")
+    callsign = flight.get("callSign") or flight.get("number")
+
+    if direction == "inbound":
+        origin_iata = _movement_airport_code(opposite)
+        destination_iata = _movement_airport_code(movement) or airport_code
+    else:
+        origin_iata = _movement_airport_code(movement) or airport_code
+        destination_iata = _movement_airport_code(opposite)
+
+    return FlightInfo(
+        flight_id=_aerodatabox_flight_id(flight, direction, airport_code, scheduled_time, origin_iata, destination_iata),
+        flight_number=flight_number,
+        callsign=callsign,
+        aircraft_type=_optional_string((flight.get("aircraft") or {}).get("model")),
+        airline=airline,
+        origin_iata=origin_iata,
+        destination_iata=destination_iata,
+        direction=direction,
+        scheduled_time=scheduled_time,
+        estimated_time=estimated_time,
+        real_time=real_time,
+        status_text=status_text,
+        latitude=None,
+        longitude=None,
+        altitude=None,
+        speed=None,
+    )
+
+
+def _aerodatabox_movement(flight: dict[str, Any], direction: str) -> dict[str, Any]:
+    if flight.get("movement"):
+        return flight.get("movement") or {}
+    key = "arrival" if direction == "inbound" else "departure"
+    return flight.get(key) or {}
+
+
+def _aerodatabox_opposite_movement(flight: dict[str, Any], direction: str) -> dict[str, Any]:
+    if flight.get("movement"):
+        return flight.get("movement") or {}
+    key = "departure" if direction == "inbound" else "arrival"
+    return flight.get(key) or {}
+
+
+def _movement_airport_code(movement: dict[str, Any]) -> Optional[str]:
+    airport = movement.get("airport") or {}
+    return _optional_string(airport.get("iata") or airport.get("icao") or airport.get("localCode"))
+
+
+def _pick_aerodatabox_time(movement: dict[str, Any], key: str) -> Optional[int]:
+    value = movement.get(key)
+    if not isinstance(value, dict):
+        return None
+    return _parse_timestamp(value.get("utc"))
+
+
+def _aerodatabox_status_text(
+    value: Any,
+    *,
+    direction: str,
+    scheduled_time: Optional[int],
+    estimated_time: Optional[int],
+    runway_time: Optional[int],
+) -> str:
+    mapping = {
+        "Canceled": "Cancelled",
+        "CanceledUncertain": "Cancellation Uncertain",
+        "EnRoute": "En Route",
+        "GateClosed": "Gate Closed",
+        "CheckIn": "Check In",
+    }
+    cleaned = value.strip() if isinstance(value, str) else ""
+    if cleaned and cleaned != "Unknown":
+        return mapping.get(cleaned, cleaned)
+
+    now_epoch = int(datetime.now(timezone.utc).timestamp())
+    completed_label = "Arrived" if direction == "inbound" else "Departed"
+    if runway_time and runway_time <= now_epoch:
+        return completed_label
+    if estimated_time:
+        if scheduled_time and estimated_time > scheduled_time:
+            return "Delayed"
+        return "Expected"
+    if scheduled_time:
+        return "Expected"
+    return "Unknown"
+
+
+def _aerodatabox_airline_name(flight: dict[str, Any]) -> Optional[str]:
+    airline = flight.get("airline") or {}
+    for key in ("name", "iata", "icao"):
+        value = _friendly_operator_name(airline.get(key))
+        if value:
+            return value
+    for key in ("number", "callSign"):
+        value = _operator_name_from_ident(flight.get(key))
+        if value:
+            return value
+    return None
+
+
+def _aerodatabox_flight_id(
+    flight: dict[str, Any],
+    direction: str,
+    airport_code: str,
+    scheduled_time: Optional[int],
+    origin_iata: Optional[str],
+    destination_iata: Optional[str],
+) -> str:
+    number = _optional_string(flight.get("number")) or _optional_string(flight.get("callSign")) or "unknown"
+    scheduled = str(scheduled_time or "unknown")
+    origin = (origin_iata or "UNK").upper()
+    destination = (destination_iata or "UNK").upper()
+    return "|".join(("aerodatabox", airport_code.upper(), direction, number.upper(), origin, destination, scheduled))
+
+
 def _merge_flights(
     payloads: tuple[tuple[str, dict[str, Any]], ...],
     direction: str,
+    parser,
+    airport_code: str,
 ) -> list[FlightInfo]:
     merged: dict[str, FlightInfo] = {}
     for list_key, payload in payloads:
         for flight in _extract_flights(payload, list_key):
-            info = _parse_aeroapi_flight(flight, direction)
+            info = parser(flight, direction, airport_code)
             dedupe_key = info.flight_id or (
                 f"{info.flight_number}:{info.direction}:{info.scheduled_time or info.estimated_time or info.real_time}"
             )
@@ -138,7 +423,7 @@ def _extract_flights(payload: dict[str, Any], list_key: str) -> list[dict[str, A
     return []
 
 
-def _parse_aeroapi_flight(flight: dict[str, Any], direction: str) -> FlightInfo:
+def _parse_flightaware_flight(flight: dict[str, Any], direction: str, airport_code: str) -> FlightInfo:
     origin = flight.get("origin") or {}
     destination = flight.get("destination") or {}
 
@@ -167,7 +452,7 @@ def _parse_aeroapi_flight(flight: dict[str, Any], direction: str) -> FlightInfo:
         scheduled_time=scheduled_time,
         estimated_time=estimated_time,
         real_time=real_time,
-        status_text=_status_text(flight, direction),
+        status_text=_flightaware_status_text(flight, direction),
         latitude=None,
         longitude=None,
         altitude=None,
@@ -175,7 +460,7 @@ def _parse_aeroapi_flight(flight: dict[str, Any], direction: str) -> FlightInfo:
     )
 
 
-def _status_text(flight: dict[str, Any], direction: str) -> str:
+def _flightaware_status_text(flight: dict[str, Any], direction: str) -> str:
     if flight.get("cancelled"):
         return "Cancelled"
     if flight.get("diverted"):
@@ -227,14 +512,17 @@ def _operator_name_from_ident(value: Any) -> Optional[str]:
 
 
 def _friendly_operator_name(value: Any) -> Optional[str]:
-    if not isinstance(value, str):
-        return None
-
-    cleaned = value.strip()
+    cleaned = _optional_string(value)
     if not cleaned:
         return None
-
     return OPERATOR_NAME_ALIASES.get(cleaned, cleaned)
+
+
+def _optional_string(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None
 
 
 def _pick_first_time(flight: dict[str, Any], *keys: str) -> Optional[int]:
@@ -290,15 +578,22 @@ def _is_relevant(flight: FlightInfo) -> bool:
     if flight_time.date() != now_local.date():
         return False
 
+    retention = timedelta(minutes=_completed_retention_minutes())
     if flight.real_time:
         completed_at = datetime.fromtimestamp(flight.real_time, tz=timezone.utc).astimezone(airport_tz)
-        if completed_at + timedelta(minutes=_completed_retention_minutes()) < now_local:
+        if completed_at + retention < now_local:
+            return False
+        return True
+
+    if flight.estimated_time is None and flight.scheduled_time is not None:
+        scheduled_at = datetime.fromtimestamp(flight.scheduled_time, tz=timezone.utc).astimezone(airport_tz)
+        if scheduled_at + retention < now_local:
             return False
 
     return True
 
 
-def _time_window() -> tuple[str, str]:
+def _time_window_utc() -> tuple[str, str]:
     airport_tz = _airport_timezone()
     now_local = datetime.now(airport_tz)
     start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -310,10 +605,17 @@ def _format_iso8601(value: datetime) -> str:
     return value.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _require_api_key() -> str:
+def _require_flightaware_api_key() -> str:
     api_key = os.getenv("FLIGHTAWARE_API_KEY")
     if not api_key:
         raise RuntimeError("FLIGHTAWARE_API_KEY is not set")
+    return api_key
+
+
+def _require_aerodatabox_api_key() -> str:
+    api_key = os.getenv("AERODATABOX_API_KEY")
+    if not api_key:
+        raise RuntimeError("AERODATABOX_API_KEY is not set")
     return api_key
 
 
@@ -323,7 +625,3 @@ def _airport_timezone() -> ZoneInfo:
 
 def _completed_retention_minutes() -> int:
     return int(os.getenv("FLIGHT_COMPLETED_RETENTION_MINUTES", str(DEFAULT_COMPLETED_RETENTION_MINUTES)))
-
-
-def _cache_seconds() -> int:
-    return int(os.getenv("FLIGHTAWARE_CACHE_SECONDS", str(DEFAULT_CACHE_SECONDS)))

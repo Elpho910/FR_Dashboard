@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .flights import FlightInfo
+from .flights import FlightInfo, get_provider_label
 
 
 def print_report(flights: dict[str, list[FlightInfo]], airport_code: str) -> None:
@@ -10,7 +10,7 @@ def print_report(flights: dict[str, list[FlightInfo]], airport_code: str) -> Non
     outbound = flights.get("outbound", [])
 
     print(f"\n{'=' * 72}")
-    print(f"  FlightAware AeroAPI Report - {airport_code.upper()}")
+    print(f"  {get_provider_label()} Report - {airport_code.upper()}")
     print(f"{'=' * 72}")
 
     print(f"\n--- Inbound Flights ({len(inbound)}) ---")

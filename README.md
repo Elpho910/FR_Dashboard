@@ -1,13 +1,13 @@
 # FR_Dashboard
 
-Small FlightAware-powered airport board for viewing arrivals and departures for an airport in:
+Small airport board for viewing arrivals and departures for an airport in:
 
 - A Flask web UI
 - A JSON API
 - A terminal CLI report
 - A Raspberry Pi kiosk deployment path
 
-The default airport code is `BWT`. For FlightAware calls, the app maps `BWT` to the canonical airport ID `YWYY`.
+The default airport code is `BWT`. Both providers map `BWT` to the canonical Burnie/Wynyard ICAO code `YWYY` when needed.
 
 ## Project layout
 
@@ -16,7 +16,7 @@ The default airport code is `BWT`. For FlightAware calls, the app maps `BWT` to 
 ├── app.py                           # Flask backend and web routes
 ├── main.py                          # CLI entry point
 ├── fr24_reporter/
-│   ├── flights.py                   # FlightAware fetch + normalization logic
+│   ├── flights.py                   # Provider switch, fetch, and normalization logic
 │   ├── report.py                    # Terminal report formatting
 │   └── store.py                     # SQLite sync and override persistence
 ├── templates/
@@ -36,8 +36,8 @@ The default airport code is `BWT`. For FlightAware calls, the app maps `BWT` to 
 ## Requirements
 
 - Python 3.10+ for local development, or Docker on the target device
-- A FlightAware AeroAPI key
-- Internet access for FlightAware AeroAPI
+- A FlightAware AeroAPI key and/or an AeroDataBox API key
+- Internet access for the selected flight-data provider
 - Internet access for the Tailwind CDN and Google Fonts used by the frontend template
 - Chromium on the Raspberry Pi for kiosk mode
 
@@ -51,9 +51,15 @@ cp .env.example .env
 
 Environment variables:
 
-- `FLIGHTAWARE_API_KEY`: your FlightAware AeroAPI key
+- `FLIGHT_DATA_PROVIDER`: `flightaware` or `aerodatabox`
+- `FLIGHTAWARE_API_KEY`: your FlightAware AeroAPI key when using FlightAware
+- `AERODATABOX_MARKETPLACE`: `apimarket` or `rapidapi`
+- `AERODATABOX_API_KEY`: your AeroDataBox API key when using AeroDataBox
+- `AERODATABOX_BASE_URL`: optional override for the AeroDataBox gateway URL
+- `AERODATABOX_RAPIDAPI_HOST`: optional RapidAPI host override, default `aerodatabox.p.rapidapi.com`
 - `FLIGHT_BOARD_REFRESH_SECONDS`: browser refresh cadence in seconds, default `7200`
-- `FLIGHTAWARE_CACHE_SECONDS`: backend sync throttle in seconds, default `7200`
+- `FLIGHT_DATA_CACHE_SECONDS`: backend sync throttle in seconds, default `7200`
+- `FLIGHTAWARE_CACHE_SECONDS`: legacy cache variable still supported for backward compatibility
 - `FLIGHT_DB_PATH`: SQLite file path, default `data/fr_dashboard.sqlite3`
 - `HOST`: web bind host, default `0.0.0.0`
 - `PORT`: web port, default `5000`
@@ -66,6 +72,21 @@ Environment variables:
 - `FLIGHT_COMPLETED_RETENTION_MINUTES`: how long an arrived/departed flight remains visible, default `30`
 
 `.env` is ignored by Git through `.gitignore`.
+
+## Switching providers
+
+Set `FLIGHT_DATA_PROVIDER` in `.env` to choose the active backend:
+
+- `flightaware`: uses `FLIGHTAWARE_API_KEY`
+- `aerodatabox`: uses `AERODATABOX_API_KEY` and `AERODATABOX_MARKETPLACE`
+
+For Burnie, both providers use the ICAO code `YWYY` behind the scenes when needed, so you can keep browsing the app with `?airport=BWT`.
+
+AeroDataBox notes:
+
+- `apimarket` uses the `x-magicapi-key` header
+- `rapidapi` uses `X-RapidAPI-Key` and `X-RapidAPI-Host`
+- the app fetches two 12-hour FIDS windows and merges them so the board still shows the full local day
 
 ## Run locally
 
@@ -103,7 +124,7 @@ Useful routes:
 
 ## Admin overrides
 
-The board remains FlightAware-driven, but estimated times can be manually corrected without losing the rest of the live updates.
+The board remains provider-driven, but estimated times can be manually corrected without losing the rest of the live updates.
 
 How it works:
 
@@ -118,7 +139,7 @@ Use the admin panel to:
 - review today's flights
 - enter a corrected estimated time in `HH:MM`
 - clear an override when it is no longer needed
-- force a fresh FlightAware sync from the admin page
+- force a fresh provider sync from the admin page
 
 SQLite data is stored in `data/fr_dashboard.sqlite3` by default.
 
@@ -220,7 +241,8 @@ cp .env.example .env
 
 Edit `.env` and set at least:
 
-- `FLIGHTAWARE_API_KEY`
+- `FLIGHT_DATA_PROVIDER`
+- the matching provider API key
 - `FLASK_DEBUG=0`
 - any refresh or timezone values you want to change
 
@@ -276,7 +298,7 @@ Recommended approach:
 
 1. Install Docker and Docker Compose plugin on the Pi.
 2. Clone this repo onto the Pi.
-3. Create `.env` with the FlightAware key and your chosen refresh settings.
+3. Create `.env` with either the FlightAware key or the AeroDataBox key and your chosen refresh settings.
 4. Run `docker compose up -d --build` once.
 5. Configure Chromium to auto-launch the local board URL at login.
 
@@ -315,5 +337,5 @@ The launcher also starts Chromium with `--password-store=basic` to avoid Raspber
 - The board only shows flights for the current airport-local day.
 - Arrived and departed flights remain visible for 30 minutes, then drop off automatically.
 - The browser refresh and backend cache both default to 2 hours so the demo does not burn API calls unnecessarily.
-- The backend combines scheduled and live arrivals/departures from FlightAware AeroAPI.
+- The backend can pull data from either FlightAware AeroAPI or AeroDataBox, selected through `.env`.
 

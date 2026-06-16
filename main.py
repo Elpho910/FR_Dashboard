@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FlightAware reporter for inbound and outbound airport traffic."""
+"""Airport reporter for inbound and outbound traffic."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ load_dotenv()
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Fetch inbound and outbound flights from FlightAware AeroAPI for an airport."
+        description="Fetch inbound and outbound flights for an airport from the configured provider."
     )
     parser.add_argument(
         "--airport",

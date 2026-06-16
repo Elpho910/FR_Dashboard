@@ -73,7 +73,7 @@ def init_db() -> None:
 
 
 def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> None:
-    """Refresh today's flights from FlightAware unless the cache is still fresh."""
+    """Refresh today's flights from the configured provider unless the cache is still fresh."""
     init_db()
     airport_code = airport_code.strip().upper()
     now_epoch = int(datetime.now(timezone.utc).timestamp())
@@ -360,10 +360,17 @@ def _row_is_relevant(flight: dict[str, Any]) -> bool:
     if flight_time.date() != now_local.date():
         return False
 
+    retention = _completed_retention()
     actual_time = flight.get("actual_time")
     if actual_time is not None:
         completed_at = datetime.fromtimestamp(int(actual_time), tz=timezone.utc).astimezone(airport_tz)
-        if completed_at + _completed_retention() < now_local:
+        if completed_at + retention < now_local:
+            return False
+        return True
+
+    if flight.get("estimated_time") is None and flight.get("scheduled_time") is not None:
+        scheduled_at = datetime.fromtimestamp(int(flight["scheduled_time"]), tz=timezone.utc).astimezone(airport_tz)
+        if scheduled_at + retention < now_local:
             return False
 
     return True
@@ -417,4 +424,4 @@ def _completed_retention() -> timedelta:
 
 
 def _cache_seconds() -> int:
-    return int(os.getenv("FLIGHTAWARE_CACHE_SECONDS", "7200"))
+    return int(os.getenv("FLIGHT_DATA_CACHE_SECONDS") or os.getenv("FLIGHTAWARE_CACHE_SECONDS", "7200"))
