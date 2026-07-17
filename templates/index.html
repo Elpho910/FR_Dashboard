@@ -7,129 +7,387 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            display: ['"IBM Plex Sans"', '"Segoe UI"', 'Tahoma', 'sans-serif'],
-            mono: ['"IBM Plex Mono"', '"Consolas"', '"Liberation Mono"', 'monospace'],
-          },
-          colors: {
-            board: {
-              bg:      '#0b0d12',
-              panel:   '#111521',
-              border:  '#1e2640',
-              header:  '#0d1525',
-              amber:   '#f5a623',
-              'amber-dim': '#7a5212',
-              green:   '#22c55e',
-              'green-dim': '#14532d',
-              muted:   '#7c8aa0',
-              text:    '#f1f5f9',
-              sub:     '#cbd5e1',
-              red:     '#ef4444',
-            },
-          },
-        },
-      },
-    }
-  </script>
   <style>
-    body { background-color: #0b0d12; }
-    .row-even { background-color: #111521; }
-    .row-odd  { background-color: #0e1019; }
-    .blink { animation: blink-anim 1.2s step-start infinite; }
-    @keyframes blink-anim { 50% { opacity: 0; } }
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background: repeating-linear-gradient(
-        to bottom,
-        transparent 0px,
-        transparent 3px,
-        rgba(0,0,0,0.07) 3px,
-        rgba(0,0,0,0.07) 4px
-      );
-      pointer-events: none;
-      z-index: 50;
+    :root {
+      --bg: #03050b;
+      --panel: #070b14;
+      --panel-2: #090e19;
+      --line: rgba(121, 146, 207, 0.52);
+      --line-soft: rgba(121, 146, 207, 0.24);
+      --text: #edf3ff;
+      --muted: #a8b5d3;
+      --estimate: #d7d15f;
+      --status-green: #64c73f;
+      --status-red: #d34a72;
+      --status-amber: #d2b041;
+      --status-blue: #3c78d6;
+      --status-neutral: #22304b;
+      --qantas: #8e203f;
+      --rex: #1f459f;
+      --sharp: #12606d;
+      --generic: #263248;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #0a1020 0%, #04070d 28%, #03050b 100%);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', 'Segoe UI', Tahoma, sans-serif;
+    }
+
+    .board-shell {
+      width: min(1480px, calc(100vw - 28px));
+      margin: 0 auto;
+      padding: 18px 14px 28px;
+    }
+
+    .board-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 4px 6px 18px;
+      border-bottom: 2px solid var(--line);
+    }
+
+    .board-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .board-plane {
+      font-size: clamp(2rem, 3.2vw, 3rem);
+      line-height: 1;
+      color: var(--text);
+      transform: translateY(-2px);
+    }
+
+    .board-title {
+      margin: 0;
+      font-size: clamp(2.35rem, 5vw, 4.15rem);
+      line-height: 0.95;
+      letter-spacing: -0.05em;
+      font-weight: 700;
+    }
+
+    .board-subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.26em;
+      text-transform: uppercase;
+    }
+
+    .clock-panel {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .clock {
+      font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+      font-size: clamp(2.3rem, 4.8vw, 3.95rem);
+      line-height: 0.95;
+      font-weight: 700;
+      letter-spacing: -0.05em;
+    }
+
+    .dateline {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.74rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .status-strip {
+      margin-top: 14px;
+      padding: 9px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid var(--line-soft);
+      background: rgba(8, 12, 20, 0.88);
+      color: var(--muted);
+      font-size: 0.8rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .status-strip span:last-child {
+      font-family: 'IBM Plex Mono', monospace;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .boards {
+      margin-top: 16px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .board-panel {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(11, 15, 25, 0.98) 0%, rgba(7, 10, 18, 0.98) 100%);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.26);
+    }
+
+    .board-panel-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px 10px;
+      border-bottom: 2px solid var(--line);
+    }
+
+    .board-panel-title {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+
+    .board-panel-count {
+      color: var(--muted);
+      font-size: 0.74rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+    }
+
+    .fids-head,
+    .fids-row {
+      display: grid;
+      grid-template-columns: 132px 132px minmax(200px, 1.8fr) 92px 92px minmax(170px, 1.2fr);
+      column-gap: 14px;
+      align-items: center;
+      min-width: 940px;
+    }
+
+    .fids-head {
+      padding: 10px 14px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+      background: rgba(14, 20, 34, 0.92);
+    }
+
+    .fids-row {
+      padding: 10px 14px;
+      min-height: 68px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .fids-row:nth-child(odd) {
+      background: rgba(9, 12, 21, 0.65);
+    }
+
+    .fids-row:nth-child(even) {
+      background: rgba(7, 10, 18, 0.92);
+    }
+
+    .fids-empty {
+      padding: 26px 14px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.95rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .airline-badge {
+      width: 118px;
+      min-height: 34px;
+      padding: 6px 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 2px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #f6f9ff;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-transform: none;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .airline-qantas { background: linear-gradient(135deg, #9a2647 0%, #7b1d39 100%); }
+    .airline-rex { background: linear-gradient(135deg, #3059bf 0%, #1b3f91 100%); text-transform: lowercase; font-style: italic; }
+    .airline-sharp { background: linear-gradient(135deg, #1a7282 0%, #145664 100%); }
+    .airline-generic { background: linear-gradient(135deg, #33445f 0%, #223148 100%); }
+
+    .flight-code {
+      font-size: 2rem;
+      line-height: 1;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      white-space: nowrap;
+    }
+
+    .location-name {
+      font-size: 1.95rem;
+      line-height: 1.05;
+      font-weight: 600;
+      letter-spacing: -0.04em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .time-value {
+      text-align: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.72rem;
+      line-height: 1;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .time-value.estimated { color: var(--estimate); }
+    .time-value.estimated.same { color: var(--text); }
+    .time-value.actual { color: #77d76d; }
+
+    .time-note {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.62rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .status-box {
+      width: 100%;
+      min-height: 42px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      border-radius: 2px;
+      font-size: 1.08rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #eef5ff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status-green { background: linear-gradient(90deg, #5dc93b 0%, #76d64f 100%); color: #0c2000; }
+    .status-red { background: linear-gradient(90deg, #cd426c 0%, #e85981 100%); }
+    .status-amber { background: linear-gradient(90deg, #b08a21 0%, #d2ae43 100%); color: #1b1600; }
+    .status-blue { background: linear-gradient(90deg, #2f68c7 0%, #4f86df 100%); }
+    .status-neutral { background: rgba(34, 48, 75, 0.72); border: 1px solid rgba(121, 146, 207, 0.24); color: var(--muted); }
+
+    .board-footer {
+      margin-top: 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.74rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 900px) {
+      .board-shell {
+        width: calc(100vw - 16px);
+        padding: 12px 8px 18px;
+      }
+
+      .board-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .clock-panel {
+        text-align: left;
+      }
+
+      .status-strip {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
-<body class="min-h-screen font-display text-board-text">
-
-  <header class="bg-board-header border-b border-board-border px-3 md:px-3 py-1.5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-    <div class="flex items-center gap-4">
-      <div class="bg-board-amber text-black font-bold text-lg md:text-xl px-3 py-1 rounded tracking-[0.28em]">
-        {{ airport }}
-      </div>
-      <div>
-        <div class="text-sm md:text-base font-bold tracking-[0.22em] text-board-text uppercase">
-          Flight Information Display
+<body>
+  <div class="board-shell">
+    <header class="board-header">
+      <div class="board-title-wrap">
+        <div class="board-plane">&#9992;</div>
+        <div>
+          <h1 class="board-title"><span id="board-airport-name">{{ airport }}</span> Flights</h1>
+          <div class="board-subtitle">Flight Information Display</div>
         </div>
-        <div class="text-[10px] text-board-sub tracking-[0.22em] uppercase">Today's Arrivals and Departures</div>
       </div>
-    </div>
-    <div class="text-right">
-      <div class="text-board-amber text-xl md:text-2xl font-bold tracking-[0.12em] tabular-nums font-mono" id="clock">--:--:--</div>
-      <div class="text-[10px] text-board-sub tracking-[0.18em] uppercase" id="dateline">---</div>
-      <div class="text-[9px] text-board-muted tracking-[0.14em] uppercase">Airport local time · {{ airport_timezone }}</div>
-    </div>
-  </header>
+      <div class="clock-panel">
+        <div class="clock" id="clock">--:--</div>
+        <div class="dateline" id="dateline">---</div>
+      </div>
+    </header>
 
-  <main class="px-2 md:px-3 py-3 md:py-4 max-w-none mx-auto space-y-5">
-    <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between text-[11px] text-board-sub border border-board-border rounded px-2.5 py-1.5 bg-board-panel">
-      <span id="status-text">Loading today's flights…</span>
-      <span class="tracking-[0.25em] uppercase">Completed flights remain visible for 30 minutes</span>
-      <span id="refresh-countdown" class="tabular-nums font-mono"></span>
+    <div class="status-strip">
+      <span id="status-text">Loading today's flights...</span>
+      <span id="refresh-countdown"></span>
     </div>
 
-    <section>
-      <div class="flex items-center gap-2 mb-1.5">
-        <div class="w-3 h-3 rounded-full bg-board-green blink"></div>
-        <h2 class="text-board-green font-bold tracking-[0.32em] text-xs uppercase">Arrivals</h2>
-        <span class="text-board-muted text-[10px] tracking-[0.16em] uppercase" id="arrivals-count"></span>
-      </div>
-      <div class="border border-board-border rounded overflow-hidden shadow-[0_0_25px_rgba(0,0,0,0.25)]">
-        <div class="grid grid-cols-[1.3fr_1.9fr_1fr_1.1fr_1.2fr] bg-board-header border-b border-board-border text-board-sub text-[11px] tracking-[0.28em] uppercase px-3 py-1.5">
-          <span>Flight</span>
-          <span>Operator</span>
-          <span>From</span>
-          <span class="text-center">Time</span>
-          <span class="text-right">Status</span>
+    <main class="boards">
+      <section class="board-panel">
+        <div class="board-panel-header">
+          <div class="board-panel-title">Arrivals</div>
+          <div class="board-panel-count" id="arrivals-count"></div>
         </div>
-        <div id="arrivals-body">
-          <div class="text-board-muted text-center py-5 text-sm tracking-[0.18em] uppercase">Loading…</div>
+        <div class="table-scroll">
+          <div class="fids-head">
+            <span>Airline</span>
+            <span>Flight</span>
+            <span>Origin</span>
+            <span style="text-align:center;">Sch.</span>
+            <span style="text-align:center;">Est.</span>
+            <span>Status</span>
+          </div>
+          <div id="arrivals-body">
+            <div class="fids-empty">Loading...</div>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section>
-      <div class="flex items-center gap-2 mb-1.5">
-        <div class="w-3 h-3 rounded-full bg-board-amber blink" style="animation-delay:0.6s"></div>
-        <h2 class="text-board-amber font-bold tracking-[0.32em] text-xs uppercase">Departures</h2>
-        <span class="text-board-muted text-[10px] tracking-[0.16em] uppercase" id="departures-count"></span>
-      </div>
-      <div class="border border-board-border rounded overflow-hidden shadow-[0_0_25px_rgba(0,0,0,0.25)]">
-        <div class="grid grid-cols-[1.3fr_1.9fr_1fr_1.1fr_1.2fr] bg-board-header border-b border-board-border text-board-sub text-[11px] tracking-[0.28em] uppercase px-4 py-2">
-          <span>Flight</span>
-          <span>Operator</span>
-          <span>To</span>
-          <span class="text-center">Time</span>
-          <span class="text-right">Status</span>
+      <section class="board-panel">
+        <div class="board-panel-header">
+          <div class="board-panel-title">Departures</div>
+          <div class="board-panel-count" id="departures-count"></div>
         </div>
-        <div id="departures-body">
-          <div class="text-board-muted text-center py-5 text-sm tracking-[0.18em] uppercase">Loading…</div>
+        <div class="table-scroll">
+          <div class="fids-head">
+            <span>Airline</span>
+            <span>Flight</span>
+            <span>Destination</span>
+            <span style="text-align:center;">Sch.</span>
+            <span style="text-align:center;">Est.</span>
+            <span>Status</span>
+          </div>
+          <div id="departures-body">
+            <div class="fids-empty">Loading...</div>
+          </div>
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
 
-  <footer class="text-center text-board-muted text-[10px] py-2 border-t border-board-border mt-2 tracking-[0.16em] uppercase">
-    {{ provider_label }} · Today only · Proof of Concept Demo
-  </footer>
+    <div class="board-footer">{{ provider_label }} · Airport local time · {{ airport_timezone }}</div>
+  </div>
 
   <script>
     const AIRPORT = {{ airport | tojson }};
@@ -137,6 +395,24 @@
     const REFRESH_INTERVAL = {{ refresh_interval | tojson }};
     const REFRESH_WINDOW_START = {{ refresh_window_start | tojson }};
     const REFRESH_WINDOW_END = {{ refresh_window_end | tojson }};
+
+    const AIRPORT_NAME_MAP = {
+      ADL: 'Adelaide',
+      AVV: 'Melbourne Avalon',
+      BWT: 'Burnie',
+      CNS: 'Cairns',
+      HBA: 'Hobart',
+      KNS: 'King Island',
+      LST: 'Launceston',
+      MEL: 'Melbourne',
+      MGB: 'Mount Gambier',
+      MQL: 'Mildura',
+      OOL: 'Gold Coast',
+      PER: 'Perth',
+      SYD: 'Sydney',
+      WYY: 'Burnie',
+      YWYY: 'Burnie',
+    };
 
     function formatInAirportTimezone(date, options) {
       return new Intl.DateTimeFormat('en-AU', {
@@ -148,7 +424,7 @@
     function updateClock() {
       const now = new Date();
       document.getElementById('clock').textContent =
-        formatInAirportTimezone(now, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        formatInAirportTimezone(now, { hour: '2-digit', minute: '2-digit', hour12: false });
       document.getElementById('dateline').textContent =
         formatInAirportTimezone(now, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
     }
@@ -156,7 +432,7 @@
     updateClock();
 
     function parseClockMinutes(hhmm) {
-      const [hours, minutes] = hhmm.split(":").map(Number);
+      const [hours, minutes] = hhmm.split(':').map(Number);
       return (hours * 60) + minutes;
     }
 
@@ -190,8 +466,7 @@
       const windowOpen = isWithinRefreshWindow();
       if (!windowOpen) {
         if (wasWindowOpen !== false) countdown = REFRESH_INTERVAL;
-        document.getElementById('refresh-countdown').textContent =
-          `Auto-refresh resumes at ${REFRESH_WINDOW_START}`;
+        document.getElementById('refresh-countdown').textContent = `Auto-refresh resumes at ${REFRESH_WINDOW_START}`;
         wasWindowOpen = false;
         return;
       }
@@ -207,8 +482,7 @@
         loadFlights();
         countdown = REFRESH_INTERVAL;
       }
-      document.getElementById('refresh-countdown').textContent =
-        `Next refresh in ${countdown}s`;
+      document.getElementById('refresh-countdown').textContent = `Next refresh in ${countdown}s`;
     }
     tickCountdown();
     setInterval(tickCountdown, 1000);
@@ -220,76 +494,113 @@
       });
     }
 
-    function resolveTime(f) {
+    function locationDisplayName(code) {
+      if (!code) return '—';
+      return AIRPORT_NAME_MAP[code] || code;
+    }
+
+    function firstNonEmpty(...values) {
+      for (const value of values) {
+        if (typeof value === 'string' && value.trim()) return value.trim();
+      }
+      return null;
+    }
+
+    function flightLocationName(flight, direction) {
+      const nameKey = direction === 'inbound' ? 'origin_name' : 'destination_name';
+      const codeKey = direction === 'inbound' ? 'origin_iata' : 'destination_iata';
+      return firstNonEmpty(flight[nameKey], locationDisplayName(flight[codeKey]), '—') || '—';
+    }
+
+    function airlineBrand(f) {
+      const airline = (f.airline || '').trim();
+      const lower = airline.toLowerCase();
+      if (lower.includes('qantas')) {
+        return { label: lower.includes('link') ? 'QantasLink' : 'Qantas', className: 'airline-qantas' };
+      }
+      if (lower.includes('regional express') || lower.includes('rex')) {
+        return { label: 'rex', className: 'airline-rex' };
+      }
+      if (lower.includes('sharp')) {
+        return { label: 'Sharp', className: 'airline-sharp' };
+      }
+      if (airline) {
+        return { label: airline.split(' ').slice(0, 2).join(' '), className: 'airline-generic' };
+      }
+      return { label: 'Airline', className: 'airline-generic' };
+    }
+
+    function airlineBadge(f) {
+      const brand = airlineBrand(f);
+      return `<span class="airline-badge ${brand.className}">${brand.label}</span>`;
+    }
+
+    function scheduledTimeCell(f) {
+      const scheduled = fmtTime(f.scheduled_time);
+      return scheduled
+        ? `<div class="time-value">${scheduled}</div>`
+        : `<div class="time-value" style="color: var(--muted);">—</div>`;
+    }
+
+    function estimatedTimeCell(f) {
       const actualTime = f.actual_time || f.real_time;
+      const scheduled = fmtTime(f.scheduled_time);
       if (actualTime) {
-        return { display: fmtTime(actualTime), cssClass: 'text-board-green font-bold', prefix: 'ACT' };
+        return `<div>
+                  <div class="time-value actual">${fmtTime(actualTime)}</div>
+                  <span class="time-note">Actual</span>
+                </div>`;
       }
-      if (f.estimated_time) {
-        const sched = fmtTime(f.scheduled_time);
-        const est = fmtTime(f.estimated_time);
-        const changed = sched && est && est !== sched;
-        return {
-          display: est,
-          cssClass: changed ? 'text-board-amber font-bold' : 'text-board-text',
-          prefix: changed ? 'EST' : 'SCH',
-        };
+
+      const estimated = fmtTime(f.estimated_time) || scheduled;
+      if (!estimated) {
+        return `<div class="time-value" style="color: var(--muted);">—</div>`;
       }
-      if (f.scheduled_time) {
-        return { display: fmtTime(f.scheduled_time), cssClass: 'text-board-text', prefix: 'SCH' };
-      }
-      return { display: '—', cssClass: 'text-board-muted', prefix: '' };
+
+      const changed = scheduled && estimated !== scheduled;
+      const classes = changed ? 'time-value estimated' : 'time-value estimated same';
+      const note = changed ? 'Estimate' : 'On Time';
+      return `<div>
+                <div class="${classes}">${estimated}</div>
+                <span class="time-note">${note}</span>
+              </div>`;
     }
 
-    function timeCell(f) {
-      const t = resolveTime(f);
-      const label = t.prefix
-        ? `<span class="text-board-muted text-[10px] block leading-none tracking-wider">${t.prefix}</span>`
-        : '';
-      return `<span class="flex flex-col items-center tabular-nums font-mono ${t.cssClass}">
-                ${label}
-                <span class="text-base md:text-lg leading-none">${t.display}</span>
-              </span>`;
+    function statusTone(statusText) {
+      const lower = statusText.toLowerCase();
+      if (lower.includes('arrived') || lower.includes('check in') || lower.includes('boarding') || lower.includes('open')) return 'status-green';
+      if (lower.includes('cancel') || lower.includes('closed')) return 'status-red';
+      if (lower.includes('delay') || lower.includes('gate closed') || lower.includes('last call')) return 'status-amber';
+      if (lower.includes('expected') || lower.includes('departed') || lower.includes('en route')) return 'status-blue';
+      return 'status-neutral';
     }
 
-    function statusBadge(f, direction) {
-      const raw = (f.status_text || 'Scheduled').trim();
-      const lower = raw.toLowerCase();
-      let color = 'text-board-sub';
-      if (lower.includes('landed') || lower.includes('arrived')) color = 'text-board-green';
-      else if (lower.includes('departed') || lower.includes('airborne')) color = 'text-board-amber';
-      else if (lower.includes('cancel')) color = 'text-board-red';
-      else if (lower.includes('delay')) color = 'text-board-amber';
-      else color = direction === 'inbound' ? 'text-board-green' : 'text-board-amber';
-      return `<span class="${color} text-xs tracking-[0.22em] uppercase">${raw}</span>`;
+    function statusCell(f) {
+      const raw = (f.status_text || 'Expected').trim();
+      return `<span class="status-box ${statusTone(raw)}">${raw}</span>`;
     }
 
     function buildRows(flights, direction) {
       if (!flights || flights.length === 0) {
-        return `<div class="text-board-muted text-center py-5 text-sm tracking-[0.18em] uppercase">No flights listed for today</div>`;
+        return `<div class="fids-empty">No flights listed for today</div>`;
       }
-      const locationKey = direction === 'inbound' ? 'origin_iata' : 'destination_iata';
-      return flights.map((f, i) => {
-        const rowClass = i % 2 === 0 ? 'row-even' : 'row-odd';
+      return flights.map((f) => {
         const ident = f.flight_number || f.callsign || '—';
-        const airline = f.airline || '—';
-        const location = f[locationKey] || '—';
-        const accentColor = direction === 'inbound' ? 'text-board-green' : 'text-board-amber';
+        const location = flightLocationName(f, direction);
         return `
-          <div class="grid grid-cols-[1.3fr_1.9fr_1fr_1.1fr_1.2fr] ${rowClass}
-                      px-3 py-2.5 border-b border-board-border last:border-b-0
-                      hover:bg-board-border transition-colors duration-150 items-center">
-            <span class="font-bold text-board-text tracking-[0.18em] text-sm md:text-base">${ident}</span>
-            <span class="text-board-sub truncate text-sm uppercase tracking-[0.14em]">${airline}</span>
-            <span class="font-semibold ${accentColor} tracking-[0.24em] text-sm md:text-base">${location}</span>
-            <span class="flex justify-center">${timeCell(f)}</span>
-            <span class="text-right">${statusBadge(f, direction)}</span>
+          <div class="fids-row">
+            <div>${airlineBadge(f)}</div>
+            <div class="flight-code">${ident}</div>
+            <div class="location-name" title="${location}">${location}</div>
+            <div>${scheduledTimeCell(f)}</div>
+            <div>${estimatedTimeCell(f)}</div>
+            <div>${statusCell(f)}</div>
           </div>`;
       }).join('');
     }
 
     async function loadFlights() {
-      document.getElementById('status-text').textContent = "Refreshing today's flights…";
+      document.getElementById('status-text').textContent = `Refreshing ${locationDisplayName(AIRPORT)} flights...`;
       try {
         const apiUrl = `./api/flights?airport=${encodeURIComponent(AIRPORT)}`;
         const res = await fetch(apiUrl);
@@ -303,6 +614,7 @@
         const inbound = data.inbound || [];
         const outbound = data.outbound || [];
 
+        document.getElementById('board-airport-name').textContent = locationDisplayName(AIRPORT);
         document.getElementById('arrivals-body').innerHTML = buildRows(inbound, 'inbound');
         document.getElementById('departures-body').innerHTML = buildRows(outbound, 'outbound');
         document.getElementById('arrivals-count').textContent = `${inbound.length} listed`;

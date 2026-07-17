@@ -32,6 +32,26 @@ OPERATOR_NAME_ALIASES = {
     "SH": "Sharp Airlines",
     "SHA": "Sharp Airlines",
 }
+AIRPORT_NAME_ALIASES = {
+    "ADL": "Adelaide",
+    "AVV": "Melbourne Avalon",
+    "BWT": "Burnie",
+    "CNS": "Cairns",
+    "HBA": "Hobart",
+    "KNS": "King Island",
+    "LST": "Launceston",
+    "MEL": "Melbourne",
+    "MGB": "Mount Gambier",
+    "MQL": "Mildura",
+    "OOL": "Gold Coast",
+    "PER": "Perth",
+    "SYD": "Sydney",
+    "WYY": "Burnie",
+    "YWYY": "Burnie",
+    "Burnie Airport": "Burnie",
+    "Burnie/Wynyard Airport": "Burnie",
+    "Wynyard": "Burnie",
+}
 FLIGHTAWARE_API_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AERODATABOX_API_MARKET_BASE_URL = "https://prod.api.market/api/v1/aedbx/aerodatabox"
 AERODATABOX_RAPIDAPI_BASE_URL = "https://aerodatabox.p.rapidapi.com"
@@ -52,7 +72,9 @@ class FlightInfo:
     aircraft_type: Optional[str]
     airline: Optional[str]
     origin_iata: Optional[str]
+    origin_name: Optional[str]
     destination_iata: Optional[str]
+    destination_name: Optional[str]
     direction: str
     scheduled_time: Optional[int]
     estimated_time: Optional[int]
@@ -280,10 +302,14 @@ def _parse_aerodatabox_flight(
 
     if direction == "inbound":
         origin_iata = _movement_airport_code(opposite)
+        origin_name = _movement_airport_name(opposite)
         destination_iata = _movement_airport_code(movement) or airport_code
+        destination_name = _movement_airport_name(movement) or _airport_display_name(airport_code)
     else:
         origin_iata = _movement_airport_code(movement) or airport_code
+        origin_name = _movement_airport_name(movement) or _airport_display_name(airport_code)
         destination_iata = _movement_airport_code(opposite)
+        destination_name = _movement_airport_name(opposite)
 
     return FlightInfo(
         flight_id=_aerodatabox_flight_id(flight, direction, airport_code, scheduled_time, origin_iata, destination_iata),
@@ -292,7 +318,9 @@ def _parse_aerodatabox_flight(
         aircraft_type=_optional_string((flight.get("aircraft") or {}).get("model")),
         airline=airline,
         origin_iata=origin_iata,
+        origin_name=origin_name,
         destination_iata=destination_iata,
+        destination_name=destination_name,
         direction=direction,
         scheduled_time=scheduled_time,
         estimated_time=estimated_time,
@@ -322,6 +350,15 @@ def _aerodatabox_opposite_movement(flight: dict[str, Any], direction: str) -> di
 def _movement_airport_code(movement: dict[str, Any]) -> Optional[str]:
     airport = movement.get("airport") or {}
     return _optional_string(airport.get("iata") or airport.get("icao") or airport.get("localCode"))
+
+
+def _movement_airport_name(movement: dict[str, Any]) -> Optional[str]:
+    airport = movement.get("airport") or {}
+    for key in ("municipalityName", "shortName", "name"):
+        value = _friendly_airport_name(airport.get(key))
+        if value:
+            return value
+    return _airport_display_name(airport.get("iata") or airport.get("icao") or airport.get("localCode"))
 
 
 def _pick_aerodatabox_time(movement: dict[str, Any], key: str) -> Optional[int]:
@@ -447,7 +484,9 @@ def _parse_flightaware_flight(flight: dict[str, Any], direction: str, airport_co
         aircraft_type=flight.get("aircraft_type"),
         airline=airline,
         origin_iata=origin.get("code_iata") or origin.get("code") or origin.get("code_icao"),
+        origin_name=_airport_dict_name(origin),
         destination_iata=destination.get("code_iata") or destination.get("code") or destination.get("code_icao"),
+        destination_name=_airport_dict_name(destination),
         direction=direction,
         scheduled_time=scheduled_time,
         estimated_time=estimated_time,
@@ -479,6 +518,14 @@ def _flightaware_status_text(flight: dict[str, Any], direction: str) -> str:
     if flight.get("estimated_out") or flight.get("estimated_off"):
         return "Expected"
     return "Scheduled"
+
+
+def _airport_dict_name(airport: dict[str, Any]) -> Optional[str]:
+    for key in ("city", "name"):
+        value = _friendly_airport_name(airport.get(key))
+        if value:
+            return value
+    return _airport_display_name(airport.get("code_iata") or airport.get("code") or airport.get("code_icao"))
 
 
 def _operator_display_name(flight: dict[str, Any]) -> Optional[str]:
@@ -516,6 +563,20 @@ def _friendly_operator_name(value: Any) -> Optional[str]:
     if not cleaned:
         return None
     return OPERATOR_NAME_ALIASES.get(cleaned, cleaned)
+
+
+def _friendly_airport_name(value: Any) -> Optional[str]:
+    cleaned = _optional_string(value)
+    if not cleaned:
+        return None
+    return AIRPORT_NAME_ALIASES.get(cleaned, AIRPORT_NAME_ALIASES.get(cleaned.upper(), cleaned))
+
+
+def _airport_display_name(value: Any) -> Optional[str]:
+    cleaned = _optional_string(value)
+    if not cleaned:
+        return None
+    return AIRPORT_NAME_ALIASES.get(cleaned.upper(), cleaned)
 
 
 def _optional_string(value: Any) -> Optional[str]:

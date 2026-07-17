@@ -39,7 +39,9 @@ def init_db() -> None:
                 aircraft_type TEXT,
                 airline TEXT,
                 origin_iata TEXT,
+                origin_name TEXT,
                 destination_iata TEXT,
+                destination_name TEXT,
                 scheduled_time INTEGER,
                 estimated_time INTEGER,
                 actual_time INTEGER,
@@ -72,6 +74,7 @@ def init_db() -> None:
             );
             """
         )
+        _ensure_synced_flights_columns(conn)
 
 
 def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> None:
@@ -108,15 +111,15 @@ def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> No
                 INSERT INTO synced_flights (
                     flight_key, airport_code, service_date, direction, flight_id,
                     flight_number, callsign, aircraft_type, airline, origin_iata,
-                    destination_iata, scheduled_time, estimated_time, actual_time,
-                    status_text, latitude, longitude, altitude, speed, fetched_at,
-                    last_synced_at
+                    origin_name, destination_iata, destination_name, scheduled_time,
+                    estimated_time, actual_time, status_text, latitude, longitude,
+                    altitude, speed, fetched_at, last_synced_at
                 ) VALUES (
                     :flight_key, :airport_code, :service_date, :direction, :flight_id,
                     :flight_number, :callsign, :aircraft_type, :airline, :origin_iata,
-                    :destination_iata, :scheduled_time, :estimated_time, :actual_time,
-                    :status_text, :latitude, :longitude, :altitude, :speed, :fetched_at,
-                    :last_synced_at
+                    :origin_name, :destination_iata, :destination_name, :scheduled_time,
+                    :estimated_time, :actual_time, :status_text, :latitude, :longitude,
+                    :altitude, :speed, :fetched_at, :last_synced_at
                 )
                 ON CONFLICT(flight_key) DO UPDATE SET
                     airport_code = excluded.airport_code,
@@ -128,7 +131,9 @@ def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> No
                     aircraft_type = excluded.aircraft_type,
                     airline = excluded.airline,
                     origin_iata = excluded.origin_iata,
+                    origin_name = excluded.origin_name,
                     destination_iata = excluded.destination_iata,
+                    destination_name = excluded.destination_name,
                     scheduled_time = excluded.scheduled_time,
                     estimated_time = excluded.estimated_time,
                     actual_time = excluded.actual_time,
@@ -268,6 +273,17 @@ def clear_estimated_override(flight_key: str, *, airport_code: str = AIRPORT_COD
             "DELETE FROM flight_time_overrides WHERE flight_key = ? AND airport_code = ?",
             (flight_key, airport_code.strip().upper()),
         )
+
+
+def _ensure_synced_flights_columns(conn: sqlite3.Connection) -> None:
+    existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(synced_flights)")}
+    required_columns = {
+        "origin_name": "TEXT",
+        "destination_name": "TEXT",
+    }
+    for column_name, column_type in required_columns.items():
+        if column_name not in existing_columns:
+            conn.execute(f"ALTER TABLE synced_flights ADD COLUMN {column_name} {column_type}")
 
 
 def get_flight_for_admin(flight_key: str, airport_code: str = AIRPORT_CODE) -> dict[str, Any]:
