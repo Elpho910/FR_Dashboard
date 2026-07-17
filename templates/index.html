@@ -41,9 +41,9 @@
     }
 
     .board-shell {
-      width: min(1480px, calc(100vw - 28px));
-      margin: 0 auto;
-      padding: 18px 14px 28px;
+      width: 100%;
+      min-height: 100vh;
+      padding: 12px;
     }
 
     .board-header {
@@ -111,7 +111,7 @@
       padding: 9px 12px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 12px;
       border: 1px solid var(--line-soft);
       background: rgba(8, 12, 20, 0.88);
@@ -303,8 +303,7 @@
 
     @media (max-width: 900px) {
       .board-shell {
-        width: calc(100vw - 16px);
-        padding: 12px 8px 18px;
+        padding: 8px;
       }
 
       .board-header {
@@ -340,7 +339,6 @@
     </header>
 
     <div class="status-strip">
-      <span id="status-text">Loading today's flights...</span>
       <span id="refresh-countdown"></span>
     </div>
 
@@ -600,7 +598,6 @@
     }
 
     async function loadFlights() {
-      document.getElementById('status-text').textContent = `Refreshing ${locationDisplayName(AIRPORT)} flights...`;
       try {
         const apiUrl = `./api/flights?airport=${encodeURIComponent(AIRPORT)}`;
         const res = await fetch(apiUrl);
@@ -619,12 +616,8 @@
         document.getElementById('departures-body').innerHTML = buildRows(outbound, 'outbound');
         document.getElementById('arrivals-count').textContent = `${inbound.length} listed`;
         document.getElementById('departures-count').textContent = `${outbound.length} listed`;
-
-        const now = formatInAirportTimezone(new Date(), { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-        document.getElementById('status-text').textContent =
-          `Last updated ${now} · ${inbound.length + outbound.length} flights shown today`;
       } catch (err) {
-        document.getElementById('status-text').textContent = `Error: ${err.message}`;
+        document.getElementById('refresh-countdown').textContent = `Error: ${err.message}`;
       }
     }
 
