@@ -106,29 +106,8 @@
       text-transform: uppercase;
     }
 
-    .status-strip {
-      margin-top: 14px;
-      padding: 9px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 12px;
-      border: 1px solid var(--line-soft);
-      background: rgba(8, 12, 20, 0.88);
-      color: var(--muted);
-      font-size: 0.8rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-    }
-
-    .status-strip span:last-child {
-      font-family: 'IBM Plex Mono', monospace;
-      text-align: right;
-      white-space: nowrap;
-    }
-
     .boards {
-      margin-top: 16px;
+      margin-top: 14px;
       display: grid;
       gap: 18px;
     }
@@ -315,10 +294,6 @@
         text-align: left;
       }
 
-      .status-strip {
-        flex-direction: column;
-        align-items: flex-start;
-      }
     }
   </style>
 </head>
@@ -337,10 +312,6 @@
         <div class="dateline" id="dateline">---</div>
       </div>
     </header>
-
-    <div class="status-strip">
-      <span id="refresh-countdown"></span>
-    </div>
 
     <main class="boards">
       <section class="board-panel">
@@ -464,7 +435,6 @@
       const windowOpen = isWithinRefreshWindow();
       if (!windowOpen) {
         if (wasWindowOpen !== false) countdown = REFRESH_INTERVAL;
-        document.getElementById('refresh-countdown').textContent = `Auto-refresh resumes at ${REFRESH_WINDOW_START}`;
         wasWindowOpen = false;
         return;
       }
@@ -480,7 +450,6 @@
         loadFlights();
         countdown = REFRESH_INTERVAL;
       }
-      document.getElementById('refresh-countdown').textContent = `Next refresh in ${countdown}s`;
     }
     tickCountdown();
     setInterval(tickCountdown, 1000);
@@ -617,7 +586,7 @@
         document.getElementById('arrivals-count').textContent = `${inbound.length} listed`;
         document.getElementById('departures-count').textContent = `${outbound.length} listed`;
       } catch (err) {
-        document.getElementById('refresh-countdown').textContent = `Error: ${err.message}`;
+        console.error('Failed to load flights', err);
       }
     }
 
