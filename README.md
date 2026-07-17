@@ -59,6 +59,8 @@ Environment variables:
 - `AERODATABOX_RAPIDAPI_HOST`: optional RapidAPI host override, default `aerodatabox.p.rapidapi.com`
 - `FLIGHT_BOARD_REFRESH_SECONDS`: browser refresh cadence in seconds, default `7200`
 - `FLIGHT_DATA_CACHE_SECONDS`: backend sync throttle in seconds, default `7200`
+- `FLIGHT_REFRESH_START_TIME`: airport-local start time for automatic syncs and browser polling, default `05:00`
+- `FLIGHT_REFRESH_END_TIME`: airport-local finish time for automatic syncs and browser polling, default `22:00`
 - `FLIGHTAWARE_CACHE_SECONDS`: legacy cache variable still supported for backward compatibility
 - `FLIGHT_DB_PATH`: SQLite file path, default `data/fr_dashboard.sqlite3`
 - `HOST`: web bind host, default `0.0.0.0`
@@ -87,6 +89,7 @@ AeroDataBox notes:
 - `apimarket` uses the `x-magicapi-key` header
 - `rapidapi` uses `X-RapidAPI-Key` and `X-RapidAPI-Host`
 - the app fetches two 12-hour FIDS windows and merges them so the board still shows the full local day
+- automatic refreshes can be limited to airport operating hours with `FLIGHT_REFRESH_START_TIME` and `FLIGHT_REFRESH_END_TIME`
 
 ## Run locally
 

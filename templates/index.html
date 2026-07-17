@@ -135,6 +135,8 @@
     const AIRPORT = {{ airport | tojson }};
     const AIRPORT_TIMEZONE = {{ airport_timezone | tojson }};
     const REFRESH_INTERVAL = {{ refresh_interval | tojson }};
+    const REFRESH_WINDOW_START = {{ refresh_window_start | tojson }};
+    const REFRESH_WINDOW_END = {{ refresh_window_end | tojson }};
 
     function formatInAirportTimezone(date, options) {
       return new Intl.DateTimeFormat('en-AU', {
@@ -153,13 +155,62 @@
     setInterval(updateClock, 1000);
     updateClock();
 
+    function parseClockMinutes(hhmm) {
+      const [hours, minutes] = hhmm.split(":").map(Number);
+      return (hours * 60) + minutes;
+    }
+
+    const REFRESH_WINDOW_START_MINUTES = parseClockMinutes(REFRESH_WINDOW_START);
+    const REFRESH_WINDOW_END_MINUTES = parseClockMinutes(REFRESH_WINDOW_END);
+
+    function airportLocalMinutes(date = new Date()) {
+      const parts = new Intl.DateTimeFormat('en-AU', {
+        timeZone: AIRPORT_TIMEZONE,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(date);
+      const hours = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+      const minutes = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
+      return (hours * 60) + minutes;
+    }
+
+    function isWithinRefreshWindow(date = new Date()) {
+      if (REFRESH_WINDOW_START_MINUTES === REFRESH_WINDOW_END_MINUTES) return true;
+      const currentMinutes = airportLocalMinutes(date);
+      if (REFRESH_WINDOW_START_MINUTES < REFRESH_WINDOW_END_MINUTES) {
+        return currentMinutes >= REFRESH_WINDOW_START_MINUTES && currentMinutes < REFRESH_WINDOW_END_MINUTES;
+      }
+      return currentMinutes >= REFRESH_WINDOW_START_MINUTES || currentMinutes < REFRESH_WINDOW_END_MINUTES;
+    }
+
     let countdown = REFRESH_INTERVAL;
+    let wasWindowOpen = null;
     function tickCountdown() {
+      const windowOpen = isWithinRefreshWindow();
+      if (!windowOpen) {
+        if (wasWindowOpen !== false) countdown = REFRESH_INTERVAL;
+        document.getElementById('refresh-countdown').textContent =
+          `Auto-refresh resumes at ${REFRESH_WINDOW_START}`;
+        wasWindowOpen = false;
+        return;
+      }
+
+      if (wasWindowOpen === false) {
+        countdown = REFRESH_INTERVAL;
+        loadFlights();
+      }
+
+      wasWindowOpen = true;
       countdown--;
-      if (countdown <= 0) { loadFlights(); countdown = REFRESH_INTERVAL; }
+      if (countdown <= 0) {
+        loadFlights();
+        countdown = REFRESH_INTERVAL;
+      }
       document.getElementById('refresh-countdown').textContent =
         `Next refresh in ${countdown}s`;
     }
+    tickCountdown();
     setInterval(tickCountdown, 1000);
 
     function fmtTime(unix) {

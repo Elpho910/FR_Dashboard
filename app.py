@@ -95,6 +95,8 @@ def index():
         refresh_interval=REFRESH_SECONDS,
         airport_timezone=AIRPORT_TIMEZONE,
         provider_label=get_provider_label(),
+        refresh_window_start=os.getenv("FLIGHT_REFRESH_START_TIME", "05:00"),
+        refresh_window_end=os.getenv("FLIGHT_REFRESH_END_TIME", "22:00"),
     )
 
 

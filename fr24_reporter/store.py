@@ -18,6 +18,8 @@ from .flights import AIRPORT_CODE, FlightInfo, fetch_bwt_flights
 load_dotenv()
 
 DB_PATH = Path(os.getenv("FLIGHT_DB_PATH", "data/fr_dashboard.sqlite3"))
+DEFAULT_REFRESH_START_TIME = "05:00"
+DEFAULT_REFRESH_END_TIME = "22:00"
 
 
 def init_db() -> None:
@@ -77,6 +79,9 @@ def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> No
     init_db()
     airport_code = airport_code.strip().upper()
     now_epoch = int(datetime.now(timezone.utc).timestamp())
+
+    if not force and not _is_within_refresh_window():
+        return
 
     with _connect() as conn:
         row = conn.execute(
@@ -425,3 +430,32 @@ def _completed_retention() -> timedelta:
 
 def _cache_seconds() -> int:
     return int(os.getenv("FLIGHT_DATA_CACHE_SECONDS") or os.getenv("FLIGHTAWARE_CACHE_SECONDS", "7200"))
+
+
+def _is_within_refresh_window(at: datetime | None = None) -> bool:
+    start = _refresh_window_start()
+    end = _refresh_window_end()
+    if start == end:
+        return True
+
+    current_dt = at.astimezone(_airport_timezone()) if at is not None else datetime.now(_airport_timezone())
+    current_time = current_dt.time().replace(second=0, microsecond=0)
+    if start < end:
+        return start <= current_time < end
+    return current_time >= start or current_time < end
+
+
+def _refresh_window_start() -> dt_time:
+    return _parse_clock_time_env("FLIGHT_REFRESH_START_TIME", DEFAULT_REFRESH_START_TIME)
+
+
+def _refresh_window_end() -> dt_time:
+    return _parse_clock_time_env("FLIGHT_REFRESH_END_TIME", DEFAULT_REFRESH_END_TIME)
+
+
+def _parse_clock_time_env(name: str, default: str) -> dt_time:
+    raw_value = os.getenv(name, default).strip()
+    try:
+        return datetime.strptime(raw_value, "%H:%M").time()
+    except ValueError as exc:
+        raise ValueError(f"{name} must be in HH:MM 24-hour format") from exc
