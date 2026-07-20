@@ -186,6 +186,33 @@
       text-transform: uppercase;
     }
 
+    .airline-cell {
+      display: flex;
+      align-items: center;
+    }
+
+    .airline-logo-tile {
+      width: 118px;
+      min-height: 40px;
+      padding: 5px 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 2px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: #ffffff;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+
+    .airline-logo {
+      width: 100%;
+      max-width: 96px;
+      max-height: 28px;
+      display: block;
+      object-fit: contain;
+      object-position: center;
+    }
+
     .airline-badge {
       width: 118px;
       min-height: 34px;
@@ -499,6 +526,15 @@
 
     function airlineBadge(f) {
       const brand = airlineBrand(f);
+      const logoMap = {
+        'airline-qantas': './static/logos/QLK.png',
+        'airline-rex': './static/logos/RXA.png',
+        'airline-sharp': './static/logos/SHA.png',
+      };
+      const logoSrc = logoMap[brand.className];
+      if (logoSrc) {
+        return `<span class="airline-logo-tile"><img class="airline-logo" src="${logoSrc}" alt="${brand.label} logo" /></span>`;
+      }
       return `<span class="airline-badge ${brand.className}">${brand.label}</span>`;
     }
 
@@ -556,7 +592,7 @@
         const location = flightLocationName(f, direction);
         return `
           <div class="fids-row">
-            <div>${airlineBadge(f)}</div>
+            <div class="airline-cell">${airlineBadge(f)}</div>
             <div class="flight-code">${ident}</div>
             <div class="location-name" title="${location}">${location}</div>
             <div>${scheduledTimeCell(f)}</div>
