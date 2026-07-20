@@ -7,6 +7,7 @@ const REFRESH_INTERVAL = boardConfig.refresh_interval;
 const REFRESH_WINDOW_START = boardConfig.refresh_window_start;
 const REFRESH_WINDOW_END = boardConfig.refresh_window_end;
 const API_FLIGHTS_URL = boardConfig.api_flights_url;
+const BROWSER_HARD_REFRESH_SECONDS = boardConfig.browser_hard_refresh_seconds;
 const AIRPORT_NAME_MAP = boardConfig.airport_name_map;
 const AIRLINE_LOGOS = boardConfig.airline_logos;
 
@@ -142,7 +143,6 @@ function estimatedTimeCell(flight) {
   if (actualTime) {
     return `<div>
               <div class="time-value actual">${fmtTime(actualTime)}</div>
-              <span class="time-note">Actual</span>
             </div>`;
   }
 
@@ -206,8 +206,8 @@ function buildRows(flights, direction) {
 
 async function loadFlights() {
   try {
-    const apiUrl = `${API_FLIGHTS_URL}?airport=${encodeURIComponent(AIRPORT)}`;
-    const response = await fetch(apiUrl);
+    const apiUrl = `${API_FLIGHTS_URL}?airport=${encodeURIComponent(AIRPORT)}&_=${Date.now()}`;
+    const response = await fetch(apiUrl, { cache: 'no-store' });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
       const message = data?.error || `HTTP ${response.status}`;
@@ -232,4 +232,7 @@ setInterval(updateClock, 1000);
 updateClock();
 tickCountdown();
 setInterval(tickCountdown, 1000);
+if (BROWSER_HARD_REFRESH_SECONDS > 0) {
+  setInterval(() => window.location.reload(), BROWSER_HARD_REFRESH_SECONDS * 1000);
+}
 loadFlights();

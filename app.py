@@ -98,6 +98,7 @@ def index():
         provider_label=get_provider_label(),
         refresh_window_start=os.getenv("FLIGHT_REFRESH_START_TIME", "05:00"),
         refresh_window_end=os.getenv("FLIGHT_REFRESH_END_TIME", "22:00"),
+        browser_hard_refresh_seconds=int(os.getenv("BROWSER_HARD_REFRESH_SECONDS", "0")),
     )
 
 
@@ -111,7 +112,11 @@ def api_flights():
             flights = get_board_flights(airport, sync=False)
         else:
             flights = get_board_flights(airport, sync=True)
-        return jsonify(flights)
+        response = jsonify(flights)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     except Exception as exc:
         app.logger.exception("Failed to fetch flights for airport %s", airport)
         message = str(exc) or exc.__class__.__name__
