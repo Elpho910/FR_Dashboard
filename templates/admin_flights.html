@@ -11,9 +11,9 @@
     <header class="flex flex-col gap-3 border-b border-slate-800 pb-4 md:flex-row md:items-end md:justify-between">
       <div>
         <div class="text-xs uppercase tracking-[0.3em] text-slate-500">Flight Dashboard Admin</div>
-        <h1 class="mt-2 text-2xl font-semibold text-white">{{ airport }} Time &amp; Status Overrides</h1>
+        <h1 class="mt-2 text-2xl font-semibold text-white">{{ airport }} Flight Overrides</h1>
         <p class="mt-2 text-sm text-slate-400">
-          Manual estimated-time and status overrides sit on top of the live feed and survive refreshes.
+          Manual flight-number, estimated-time, and status overrides sit on top of the live feed and survive refreshes.
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -45,23 +45,27 @@
       <table class="min-w-full divide-y divide-slate-800">
         <thead class="bg-slate-900/90 text-left text-xs uppercase tracking-[0.18em] text-slate-400">
           <tr>
-            <th class="px-4 py-3">Flight</th>
+            <th class="px-4 py-3">Board</th>
             <th class="px-4 py-3">Direction</th>
             <th class="px-4 py-3">Operator</th>
             <th class="px-4 py-3">Route</th>
             <th class="px-4 py-3">Scheduled</th>
-            <th class="px-4 py-3">API Estimate</th>
-            <th class="px-4 py-3">API Status</th>
-            <th class="px-4 py-3">Manual Overrides</th>
-            <th class="px-4 py-3">Current Status</th>
+            <th class="px-4 py-3">API Data</th>
+            <th class="px-4 py-3">Overrides</th>
             <th class="px-4 py-3">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-800 text-sm text-slate-100">
           {% for flight in flights %}
             <tr class="align-top">
-              <td class="px-4 py-3 font-medium text-white">
-                {{ flight.flight_number or flight.callsign or '—' }}
+              <td class="px-4 py-3">
+                <div class="font-medium text-white">{{ flight.flight_number or flight.callsign or '—' }}</div>
+                <div class="mt-1 text-xs text-slate-500">{{ flight.flight_key }}</div>
+                {% if flight.flight_number_override_active %}
+                  <div class="mt-2 inline-flex rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-violet-100">
+                    Flight # Override
+                  </div>
+                {% endif %}
               </td>
               <td class="px-4 py-3 text-slate-300">
                 {{ 'Arrival' if flight.direction == 'inbound' else 'Departure' }}
@@ -75,37 +79,54 @@
                 {% endif %}
               </td>
               <td class="px-4 py-3 font-mono text-slate-200">{{ format_unix_local(flight.scheduled_time) }}</td>
-              <td class="px-4 py-3 font-mono text-slate-200">{{ format_unix_local(flight.api_estimated_time) }}</td>
-              <td class="px-4 py-3 text-slate-300">{{ flight.api_status_text or '—' }}</td>
               <td class="px-4 py-3">
-                <div class="font-mono text-slate-100">{{ format_unix_local(flight.override_estimated_time) }}</div>
-                <div class="mt-1 text-slate-300">{{ flight.override_status_text or '—' }}</div>
-                {% if flight.time_override_active %}
-                  <div class="mt-1 inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-amber-100">
-                    Time Override
-                  </div>
-                {% endif %}
-                {% if flight.status_override_active %}
-                  <div class="mt-1 inline-flex rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-sky-100">
-                    Status Override
-                  </div>
-                {% endif %}
-                {% if flight.api_matches_estimated_override %}
-                  <div class="mt-1 inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100">
-                    API Time Matches
-                  </div>
-                {% endif %}
-                {% if flight.api_matches_status_override %}
-                  <div class="mt-1 inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100">
-                    API Status Matches
-                  </div>
-                {% endif %}
+                <div class="space-y-1 rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-300">
+                  <div><span class="text-slate-500">API Flight #:</span> <span class="font-mono text-slate-100">{{ flight.api_flight_number or '—' }}</span></div>
+                  <div><span class="text-slate-500">API Call-sign:</span> <span class="font-mono text-slate-100">{{ flight.api_callsign or '—' }}</span></div>
+                  <div><span class="text-slate-500">Flight ID:</span> <span class="font-mono text-slate-100">{{ flight.flight_id or '—' }}</span></div>
+                  <div><span class="text-slate-500">API Estimate:</span> <span class="font-mono text-slate-100">{{ format_unix_local(flight.api_estimated_time) }}</span></div>
+                  <div><span class="text-slate-500">API Status:</span> <span class="text-slate-100">{{ flight.api_status_text or '—' }}</span></div>
+                </div>
               </td>
-              <td class="px-4 py-3 text-slate-100">{{ flight.status_text or '—' }}</td>
+              <td class="px-4 py-3">
+                <div class="space-y-2 rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-300">
+                  <div><span class="text-slate-500">Flight #:</span> <span class="font-mono text-slate-100">{{ flight.override_flight_number or '—' }}</span></div>
+                  <div><span class="text-slate-500">Est. Time:</span> <span class="font-mono text-slate-100">{{ format_unix_local(flight.override_estimated_time) }}</span></div>
+                  <div><span class="text-slate-500">Status:</span> <span class="text-slate-100">{{ flight.override_status_text or '—' }}</span></div>
+                  <div><span class="text-slate-500">Note:</span> <span class="text-slate-100">{{ flight.override_note or '—' }}</span></div>
+                  <div class="flex flex-wrap gap-1 pt-1">
+                    {% if flight.time_override_active %}
+                      <div class="inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-amber-100">Time Override</div>
+                    {% endif %}
+                    {% if flight.status_override_active %}
+                      <div class="inline-flex rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-sky-100">Status Override</div>
+                    {% endif %}
+                    {% if flight.flight_number_override_active %}
+                      <div class="inline-flex rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-violet-100">Flight # Override</div>
+                    {% endif %}
+                    {% if flight.api_matches_estimated_override %}
+                      <div class="inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100">API Time Matches</div>
+                    {% endif %}
+                    {% if flight.api_matches_status_override %}
+                      <div class="inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100">API Status Matches</div>
+                    {% endif %}
+                    {% if flight.api_matches_flight_number_override %}
+                      <div class="inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100">API Flight # Matches</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
               <td class="px-4 py-3">
                 <form method="post" action="admin/override" class="space-y-2">
                   <input type="hidden" name="airport" value="{{ airport }}" />
                   <input type="hidden" name="flight_key" value="{{ flight.flight_key }}" />
+                  <input
+                    type="text"
+                    name="override_flight_number"
+                    value="{{ flight.override_flight_number or '' }}"
+                    placeholder="Flight number"
+                    class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-white outline-none focus:border-sky-400"
+                  />
                   <input
                     type="time"
                     name="override_estimated_time"
@@ -153,7 +174,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="10" class="px-4 py-8 text-center text-sm uppercase tracking-[0.18em] text-slate-500">
+              <td colspan="8" class="px-4 py-8 text-center text-sm uppercase tracking-[0.18em] text-slate-500">
                 No flights loaded for today.
               </td>
             </tr>

@@ -24,6 +24,7 @@ AERODATABOX_AIRPORT_ID_ALIASES = {
 OPERATOR_NAME_ALIASES = {
     "QF": "QantasLink",
     "QLK": "QantasLink",
+    "QFA": "QantasLink",
     "Rex": "Regional Express",
     "REX": "Regional Express",
     "RXA": "Regional Express",
@@ -31,6 +32,13 @@ OPERATOR_NAME_ALIASES = {
     "Sharp": "Sharp Airlines",
     "SH": "Sharp Airlines",
     "SHA": "Sharp Airlines",
+}
+DISPLAY_FLIGHT_PREFIX_ALIASES = {
+    "QLK": "QF",
+    "QFA": "QF",
+    "RXA": "ZL",
+    "REX": "ZL",
+    "SHA": "SH",
 }
 AIRPORT_NAME_ALIASES = {
     "ADL": "Adelaide",
@@ -297,8 +305,8 @@ def _parse_aerodatabox_flight(
         real_time = runway_time or estimated_time
 
     airline = _aerodatabox_airline_name(flight)
-    flight_number = flight.get("number") or flight.get("callSign")
-    callsign = flight.get("callSign") or flight.get("number")
+    flight_number = _display_flight_number(flight.get("number"), flight.get("callSign"))
+    callsign = _normalize_flight_identifier(flight.get("callSign") or flight.get("number"))
 
     if direction == "inbound":
         origin_iata = _movement_airport_code(opposite)
@@ -473,8 +481,10 @@ def _parse_flightaware_flight(flight: dict[str, Any], direction: str, airport_co
         estimated_time = _pick_first_time(flight, "estimated_off", "estimated_out")
         real_time = _pick_first_time(flight, "actual_off", "actual_out")
 
-    flight_number = flight.get("ident_icao") or flight.get("ident") or flight.get("ident_iata")
-    callsign = flight.get("ident") or flight.get("ident_icao") or flight.get("ident_iata")
+    flight_number = _display_flight_number(flight.get("ident_iata"), flight.get("ident"), flight.get("ident_icao"))
+    callsign = _normalize_flight_identifier(
+        flight.get("ident") or flight.get("ident_icao") or flight.get("ident_iata")
+    )
     airline = _operator_display_name(flight)
 
     return FlightInfo(
@@ -545,6 +555,31 @@ def _operator_display_name(flight: dict[str, Any]) -> Optional[str]:
             return value
 
     return None
+
+
+def _display_flight_number(*values: Any) -> Optional[str]:
+    for value in values:
+        normalized = _normalize_flight_identifier(value)
+        if normalized:
+            return _translate_display_flight_prefix(normalized)
+    return None
+
+
+def _translate_display_flight_prefix(value: str) -> str:
+    match = re.match(r"^([A-Z]{2,3})(\d.*)$", value)
+    if not match:
+        return value
+
+    prefix, suffix = match.groups()
+    return f"{DISPLAY_FLIGHT_PREFIX_ALIASES.get(prefix, prefix)}{suffix}"
+
+
+def _normalize_flight_identifier(value: Any) -> Optional[str]:
+    cleaned = _optional_string(value)
+    if not cleaned:
+        return None
+    compact = re.sub(r"\s+", "", cleaned).upper()
+    return compact or None
 
 
 def _operator_name_from_ident(value: Any) -> Optional[str]:

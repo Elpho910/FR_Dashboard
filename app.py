@@ -267,14 +267,16 @@ def admin_override():
             clear_flight_overrides(flight_key, airport_code=airport)
             flash("Override cleared.", "success")
         else:
-            time_text = request.form.get("estimated_time", "")
-            status_text = request.form.get("status_text", "")
-            note = request.form.get("note", "")
+            time_text = request.form.get("override_estimated_time", request.form.get("estimated_time", ""))
+            status_text = request.form.get("override_status_text", request.form.get("status_text", ""))
+            flight_number_text = request.form.get("override_flight_number", request.form.get("flight_number", ""))
+            note = request.form.get("override_note", request.form.get("note", ""))
             set_flight_overrides(
                 flight_key,
                 airport_code=airport,
                 time_text=time_text,
                 status_text=status_text,
+                flight_number_text=flight_number_text,
                 note=note,
             )
             flash("Override saved.", "success")

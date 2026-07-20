@@ -243,7 +243,12 @@ def get_admin_flights(airport_code: str = AIRPORT_CODE, *, sync: bool = True) ->
             continue
         item["time_override_active"] = item.get("override_estimated_time") is not None
         item["status_override_active"] = item.get("override_status_text") is not None
-        item["override_active"] = item["time_override_active"] or item["status_override_active"]
+        item["flight_number_override_active"] = bool(item.get("override_flight_number"))
+        item["override_active"] = (
+            item["time_override_active"]
+            or item["status_override_active"]
+            or item["flight_number_override_active"]
+        )
         item["api_matches_estimated_override"] = (
             item["time_override_active"]
             and item.get("api_estimated_time") == item.get("override_estimated_time")
@@ -251,6 +256,10 @@ def get_admin_flights(airport_code: str = AIRPORT_CODE, *, sync: bool = True) ->
         item["api_matches_status_override"] = (
             item["status_override_active"]
             and item.get("api_status_text") == item.get("override_status_text")
+        )
+        item["api_matches_flight_number_override"] = (
+            item["flight_number_override_active"]
+            and item.get("api_flight_number") == item.get("override_flight_number")
         )
         flights.append(item)
 
@@ -264,6 +273,7 @@ def set_flight_overrides(
     airport_code: str = AIRPORT_CODE,
     time_text: str = "",
     status_text: str = "",
+    flight_number_text: str = "",
     note: str = "",
 ) -> None:
     """Persist manual overrides for a specific flight."""
@@ -272,20 +282,23 @@ def set_flight_overrides(
     flight = get_flight_for_admin(flight_key, airport_code)
     override_estimated_time = _local_time_to_epoch(flight["service_date"], time_text) if time_text.strip() else None
     override_status_text = _normalize_override_status_text(status_text)
-    if override_estimated_time is None and override_status_text is None:
-        raise ValueError("Set a manual time and/or status, or use Clear Override.")
+    override_flight_number = _normalize_override_flight_number(flight_number_text)
+    if override_estimated_time is None and override_status_text is None and override_flight_number is None:
+        raise ValueError("Set a manual flight number, time, and/or status, or use Clear Override.")
 
     now = datetime.now(timezone.utc).isoformat()
     with _connect() as conn:
         conn.execute(
             """
             INSERT INTO flight_overrides (
-                flight_key, airport_code, override_estimated_time, override_status_text, note, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                flight_key, airport_code, override_estimated_time, override_status_text,
+                override_flight_number, note, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(flight_key) DO UPDATE SET
                 airport_code = excluded.airport_code,
                 override_estimated_time = excluded.override_estimated_time,
                 override_status_text = excluded.override_status_text,
+                override_flight_number = excluded.override_flight_number,
                 note = excluded.note,
                 updated_at = excluded.updated_at
             """,
@@ -294,6 +307,7 @@ def set_flight_overrides(
                 airport_code,
                 override_estimated_time,
                 override_status_text,
+                override_flight_number,
                 note.strip(),
                 now,
             ),
@@ -423,6 +437,7 @@ def _ensure_override_schema(conn: sqlite3.Connection) -> None:
             airport_code TEXT NOT NULL,
             override_estimated_time INTEGER,
             override_status_text TEXT,
+            override_flight_number TEXT,
             note TEXT,
             updated_at TEXT NOT NULL
         );
@@ -436,6 +451,7 @@ def _ensure_override_schema(conn: sqlite3.Connection) -> None:
     required_columns = {
         "override_estimated_time": "INTEGER",
         "override_status_text": "TEXT",
+        "override_flight_number": "TEXT",
         "note": "TEXT",
         "updated_at": "TEXT",
     }
@@ -495,6 +511,7 @@ def get_flight_for_admin(flight_key: str, airport_code: str = AIRPORT_CODE) -> d
                 f.*,
                 o.override_estimated_time,
                 o.override_status_text,
+                o.override_flight_number,
                 o.note AS override_note,
                 o.updated_at AS override_updated_at
             FROM synced_flights AS f
@@ -529,6 +546,7 @@ def _fetch_joined_rows(airport_code: str) -> list[sqlite3.Row]:
                 f.*,
                 o.override_estimated_time,
                 o.override_status_text,
+                o.override_flight_number,
                 o.note AS override_note,
                 o.updated_at AS override_updated_at
             FROM synced_flights AS f
@@ -559,6 +577,8 @@ def _row_from_flight(
 
 def _merge_row_for_display(row: dict[str, Any]) -> dict[str, Any]:
     raw_status_text = row.get("status_text")
+    row["api_flight_number"] = row.get("flight_number")
+    row["api_callsign"] = row.get("callsign")
     row["api_estimated_time"] = row.get("estimated_time")
     row["api_status_text"] = _normalize_status_text(
         raw_status_text,
@@ -568,8 +588,12 @@ def _merge_row_for_display(row: dict[str, Any]) -> dict[str, Any]:
         actual_time=row.get("actual_time"),
     )
     row["override_status_text"] = _normalize_override_status_text(row.get("override_status_text"))
+    row["override_flight_number"] = _normalize_override_flight_number(row.get("override_flight_number"))
     row["has_estimated_override"] = row.get("override_estimated_time") is not None
     row["has_status_override"] = row.get("override_status_text") is not None
+    row["has_flight_number_override"] = row.get("override_flight_number") is not None
+    if row.get("override_flight_number") is not None:
+        row["flight_number"] = row["override_flight_number"]
     if row.get("actual_time") is None and row.get("override_estimated_time") is not None:
         row["estimated_time"] = row["override_estimated_time"]
     if row.get("override_status_text") is not None:
@@ -692,6 +716,13 @@ def _normalize_override_status_text(value: Any) -> str | None:
             f"Unsupported status '{cleaned}'. Choose one of: {', '.join(STATUS_OVERRIDE_CHOICES)}"
         )
     return normalized
+
+
+def _normalize_override_flight_number(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = "".join(value.strip().upper().split())
+    return cleaned or None
 
 
 def _normalize_status_text(
