@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py main.py ./
 COPY fr24_reporter ./fr24_reporter
 COPY templates ./templates
+COPY static ./static
 
 EXPOSE 5000
 
