@@ -20,6 +20,19 @@ load_dotenv()
 DB_PATH = Path(os.getenv("FLIGHT_DB_PATH", "data/fr_dashboard.sqlite3"))
 DEFAULT_REFRESH_START_TIME = "05:00"
 DEFAULT_REFRESH_END_TIME = "22:00"
+STATUS_OVERRIDE_CHOICES = (
+    "On time",
+    "Check-in Open",
+    "Check-in Closed",
+    "Boarding",
+    "Final Call",
+    "Departed",
+    "Landed",
+    "Delayed",
+    "Cancelled",
+    "Diverted",
+)
+_STATUS_OVERRIDE_LOOKUP = {status.lower(): status for status in STATUS_OVERRIDE_CHOICES}
 
 
 def init_db() -> None:
@@ -57,17 +70,6 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_synced_flights_lookup
             ON synced_flights (airport_code, service_date, direction);
 
-            CREATE TABLE IF NOT EXISTS flight_time_overrides (
-                flight_key TEXT PRIMARY KEY,
-                airport_code TEXT NOT NULL,
-                override_estimated_time INTEGER NOT NULL,
-                note TEXT,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_overrides_lookup
-            ON flight_time_overrides (airport_code);
-
             CREATE TABLE IF NOT EXISTS sync_state (
                 airport_code TEXT PRIMARY KEY,
                 last_sync_epoch INTEGER NOT NULL
@@ -75,6 +77,7 @@ def init_db() -> None:
             """
         )
         _ensure_synced_flights_columns(conn)
+        _ensure_override_schema(conn)
 
 
 def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> None:
@@ -158,7 +161,7 @@ def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> No
                   AND flight_key NOT IN ({placeholders})
                   AND flight_key NOT IN (
                       SELECT flight_key
-                      FROM flight_time_overrides
+                      FROM flight_overrides
                       WHERE airport_code = ?
                   )
                 """,
@@ -172,7 +175,7 @@ def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> No
                   AND service_date = ?
                   AND flight_key NOT IN (
                       SELECT flight_key
-                      FROM flight_time_overrides
+                      FROM flight_overrides
                       WHERE airport_code = ?
                   )
                 """,
@@ -224,15 +227,73 @@ def get_admin_flights(airport_code: str = AIRPORT_CODE, *, sync: bool = True) ->
         item = _merge_row_for_display(dict(row))
         if not _row_is_relevant(item):
             continue
-        item["override_active"] = item.get("override_estimated_time") is not None
-        item["api_matches_override"] = (
-            item.get("override_estimated_time") is not None
+        item["time_override_active"] = item.get("override_estimated_time") is not None
+        item["status_override_active"] = item.get("override_status_text") is not None
+        item["override_active"] = item["time_override_active"] or item["status_override_active"]
+        item["api_matches_estimated_override"] = (
+            item["time_override_active"]
             and item.get("api_estimated_time") == item.get("override_estimated_time")
+        )
+        item["api_matches_status_override"] = (
+            item["status_override_active"]
+            and item.get("api_status_text") == item.get("override_status_text")
         )
         flights.append(item)
 
     flights.sort(key=lambda flight: (flight["direction"], _display_sort_key(flight)))
     return flights
+
+
+def set_flight_overrides(
+    flight_key: str,
+    *,
+    airport_code: str = AIRPORT_CODE,
+    time_text: str = "",
+    status_text: str = "",
+    note: str = "",
+) -> None:
+    """Persist manual overrides for a specific flight."""
+    init_db()
+    airport_code = airport_code.strip().upper()
+    flight = get_flight_for_admin(flight_key, airport_code)
+    override_estimated_time = _local_time_to_epoch(flight["service_date"], time_text) if time_text.strip() else None
+    override_status_text = _normalize_override_status_text(status_text)
+    if override_estimated_time is None and override_status_text is None:
+        raise ValueError("Set a manual time and/or status, or use Clear Override.")
+
+    now = datetime.now(timezone.utc).isoformat()
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO flight_overrides (
+                flight_key, airport_code, override_estimated_time, override_status_text, note, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(flight_key) DO UPDATE SET
+                airport_code = excluded.airport_code,
+                override_estimated_time = excluded.override_estimated_time,
+                override_status_text = excluded.override_status_text,
+                note = excluded.note,
+                updated_at = excluded.updated_at
+            """,
+            (
+                flight_key,
+                airport_code,
+                override_estimated_time,
+                override_status_text,
+                note.strip(),
+                now,
+            ),
+        )
+
+
+def clear_flight_overrides(flight_key: str, *, airport_code: str = AIRPORT_CODE) -> None:
+    """Remove stored overrides for a flight."""
+    init_db()
+    with _connect() as conn:
+        conn.execute(
+            "DELETE FROM flight_overrides WHERE flight_key = ? AND airport_code = ?",
+            (flight_key, airport_code.strip().upper()),
+        )
 
 
 def set_estimated_override(
@@ -242,37 +303,18 @@ def set_estimated_override(
     airport_code: str = AIRPORT_CODE,
     note: str = "",
 ) -> None:
-    """Persist a manual estimated-time override for a specific flight."""
-    init_db()
-    airport_code = airport_code.strip().upper()
-    flight = get_flight_for_admin(flight_key, airport_code)
-    override_epoch = _local_time_to_epoch(flight["service_date"], time_text)
-    now = datetime.now(timezone.utc).isoformat()
-
-    with _connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO flight_time_overrides (
-                flight_key, airport_code, override_estimated_time, note, updated_at
-            ) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(flight_key) DO UPDATE SET
-                airport_code = excluded.airport_code,
-                override_estimated_time = excluded.override_estimated_time,
-                note = excluded.note,
-                updated_at = excluded.updated_at
-            """,
-            (flight_key, airport_code, override_epoch, note.strip(), now),
-        )
+    """Backward-compatible wrapper for time-only overrides."""
+    set_flight_overrides(
+        flight_key,
+        airport_code=airport_code,
+        time_text=time_text,
+        note=note,
+    )
 
 
 def clear_estimated_override(flight_key: str, *, airport_code: str = AIRPORT_CODE) -> None:
-    """Remove a stored estimated-time override."""
-    init_db()
-    with _connect() as conn:
-        conn.execute(
-            "DELETE FROM flight_time_overrides WHERE flight_key = ? AND airport_code = ?",
-            (flight_key, airport_code.strip().upper()),
-        )
+    """Backward-compatible wrapper that clears all overrides for a flight."""
+    clear_flight_overrides(flight_key, airport_code=airport_code)
 
 
 def _ensure_synced_flights_columns(conn: sqlite3.Connection) -> None:
@@ -286,6 +328,38 @@ def _ensure_synced_flights_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE synced_flights ADD COLUMN {column_name} {column_type}")
 
 
+def _ensure_override_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS flight_overrides (
+            flight_key TEXT PRIMARY KEY,
+            airport_code TEXT NOT NULL,
+            override_estimated_time INTEGER,
+            override_status_text TEXT,
+            note TEXT,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_flight_overrides_lookup
+        ON flight_overrides (airport_code);
+        """
+    )
+
+    old_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'flight_time_overrides'"
+    ).fetchone()
+    if old_table is not None:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO flight_overrides (
+                flight_key, airport_code, override_estimated_time, note, updated_at
+            )
+            SELECT flight_key, airport_code, override_estimated_time, note, updated_at
+            FROM flight_time_overrides
+            """
+        )
+
+
 def get_flight_for_admin(flight_key: str, airport_code: str = AIRPORT_CODE) -> dict[str, Any]:
     """Fetch one merged flight row for admin editing."""
     init_db()
@@ -296,10 +370,11 @@ def get_flight_for_admin(flight_key: str, airport_code: str = AIRPORT_CODE) -> d
             SELECT
                 f.*,
                 o.override_estimated_time,
+                o.override_status_text,
                 o.note AS override_note,
                 o.updated_at AS override_updated_at
             FROM synced_flights AS f
-            LEFT JOIN flight_time_overrides AS o
+            LEFT JOIN flight_overrides AS o
               ON o.flight_key = f.flight_key
             WHERE f.flight_key = ? AND f.airport_code = ?
             """,
@@ -329,10 +404,11 @@ def _fetch_joined_rows(airport_code: str) -> list[sqlite3.Row]:
             SELECT
                 f.*,
                 o.override_estimated_time,
+                o.override_status_text,
                 o.note AS override_note,
                 o.updated_at AS override_updated_at
             FROM synced_flights AS f
-            LEFT JOIN flight_time_overrides AS o
+            LEFT JOIN flight_overrides AS o
               ON o.flight_key = f.flight_key
             WHERE f.airport_code = ? AND f.service_date = ?
             ORDER BY f.direction, COALESCE(f.actual_time, f.estimated_time, f.scheduled_time)
@@ -358,10 +434,30 @@ def _row_from_flight(
 
 
 def _merge_row_for_display(row: dict[str, Any]) -> dict[str, Any]:
+    raw_status_text = row.get("status_text")
     row["api_estimated_time"] = row.get("estimated_time")
+    row["api_status_text"] = _normalize_status_text(
+        raw_status_text,
+        direction=row.get("direction"),
+        scheduled_time=row.get("scheduled_time"),
+        estimated_time=row.get("estimated_time"),
+        actual_time=row.get("actual_time"),
+    )
+    row["override_status_text"] = _normalize_override_status_text(row.get("override_status_text"))
     row["has_estimated_override"] = row.get("override_estimated_time") is not None
+    row["has_status_override"] = row.get("override_status_text") is not None
     if row.get("actual_time") is None and row.get("override_estimated_time") is not None:
         row["estimated_time"] = row["override_estimated_time"]
+    if row.get("override_status_text") is not None:
+        row["status_text"] = row["override_status_text"]
+    else:
+        row["status_text"] = _normalize_status_text(
+            raw_status_text,
+            direction=row.get("direction"),
+            scheduled_time=row.get("scheduled_time"),
+            estimated_time=row.get("estimated_time"),
+            actual_time=row.get("actual_time"),
+        )
     return row
 
 
@@ -434,6 +530,67 @@ def _local_time_to_epoch(service_date: str, time_text: str) -> int:
     service_day = date.fromisoformat(service_date)
     local_dt = datetime.combine(service_day, dt_time(parsed_time.hour, parsed_time.minute), tzinfo=_airport_timezone())
     return int(local_dt.astimezone(timezone.utc).timestamp())
+
+
+def _normalize_override_status_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    normalized = _STATUS_OVERRIDE_LOOKUP.get(cleaned.lower())
+    if normalized is None:
+        raise ValueError(
+            f"Unsupported status '{cleaned}'. Choose one of: {', '.join(STATUS_OVERRIDE_CHOICES)}"
+        )
+    return normalized
+
+
+def _normalize_status_text(
+    value: Any,
+    *,
+    direction: str | None,
+    scheduled_time: Any,
+    estimated_time: Any,
+    actual_time: Any,
+) -> str:
+    movement_direction = direction or "outbound"
+    if actual_time is not None:
+        return "Landed" if movement_direction == "inbound" else "Departed"
+
+    cleaned = value.strip() if isinstance(value, str) else ""
+    lower = cleaned.lower()
+
+    if lower in {"landed", "arrived"}:
+        return "Landed"
+    if lower == "departed":
+        return "Departed"
+    if "cancel" in lower:
+        return "Cancelled"
+    if "divert" in lower:
+        return "Diverted"
+    if "final call" in lower or "last call" in lower:
+        return "Final Call"
+    if "boarding" in lower:
+        return "Boarding"
+    if lower in {"check in", "check-in", "checkin", "check-in open", "check in open", "checkin open"}:
+        return "Check-in Open"
+    if lower in {"check-in closed", "check in closed", "checkin closed", "gate closed"}:
+        return "Check-in Closed"
+    if "delay" in lower:
+        return "Delayed"
+    if lower == "closed":
+        return "Check-in Closed"
+    if lower == "open":
+        return "Check-in Open"
+
+    try:
+        if estimated_time is not None and scheduled_time is not None and int(estimated_time) > int(scheduled_time):
+            return "Delayed"
+    except (TypeError, ValueError):
+        pass
+
+    return "On time"
 
 
 def _airport_timezone() -> ZoneInfo:

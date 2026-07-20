@@ -11,9 +11,9 @@
     <header class="flex flex-col gap-3 border-b border-slate-800 pb-4 md:flex-row md:items-end md:justify-between">
       <div>
         <div class="text-xs uppercase tracking-[0.3em] text-slate-500">Flight Dashboard Admin</div>
-        <h1 class="mt-2 text-2xl font-semibold text-white">{{ airport }} Time Overrides</h1>
+        <h1 class="mt-2 text-2xl font-semibold text-white">{{ airport }} Time &amp; Status Overrides</h1>
         <p class="mt-2 text-sm text-slate-400">
-          FlightAware remains the primary source. Manual estimated-time overrides sit on top and survive refreshes.
+          Manual estimated-time and status overrides sit on top of the live feed and survive refreshes.
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -51,8 +51,9 @@
             <th class="px-4 py-3">Route</th>
             <th class="px-4 py-3">Scheduled</th>
             <th class="px-4 py-3">API Estimate</th>
-            <th class="px-4 py-3">Manual Override</th>
-            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">API Status</th>
+            <th class="px-4 py-3">Manual Overrides</th>
+            <th class="px-4 py-3">Current Status</th>
             <th class="px-4 py-3">Actions</th>
           </tr>
         </thead>
@@ -75,20 +76,32 @@
               </td>
               <td class="px-4 py-3 font-mono text-slate-200">{{ format_unix_local(flight.scheduled_time) }}</td>
               <td class="px-4 py-3 font-mono text-slate-200">{{ format_unix_local(flight.api_estimated_time) }}</td>
+              <td class="px-4 py-3 text-slate-300">{{ flight.api_status_text or '—' }}</td>
               <td class="px-4 py-3">
                 <div class="font-mono text-slate-100">{{ format_unix_local(flight.override_estimated_time) }}</div>
-                {% if flight.override_active %}
+                <div class="mt-1 text-slate-300">{{ flight.override_status_text or '—' }}</div>
+                {% if flight.time_override_active %}
                   <div class="mt-1 inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-amber-100">
-                    Override Active
+                    Time Override
                   </div>
                 {% endif %}
-                {% if flight.api_matches_override %}
+                {% if flight.status_override_active %}
+                  <div class="mt-1 inline-flex rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-sky-100">
+                    Status Override
+                  </div>
+                {% endif %}
+                {% if flight.api_matches_estimated_override %}
                   <div class="mt-1 inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100">
-                    API Matches
+                    API Time Matches
+                  </div>
+                {% endif %}
+                {% if flight.api_matches_status_override %}
+                  <div class="mt-1 inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100">
+                    API Status Matches
                   </div>
                 {% endif %}
               </td>
-              <td class="px-4 py-3 text-slate-300">{{ flight.status_text or '—' }}</td>
+              <td class="px-4 py-3 text-slate-100">{{ flight.status_text or '—' }}</td>
               <td class="px-4 py-3">
                 <form method="post" action="admin/override" class="space-y-2">
                   <input type="hidden" name="airport" value="{{ airport }}" />
@@ -99,6 +112,15 @@
                     value="{{ format_unix_local(flight.override_estimated_time) if flight.override_estimated_time else '' }}"
                     class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-white outline-none focus:border-sky-400"
                   />
+                  <select
+                    name="override_status_text"
+                    class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-white outline-none focus:border-sky-400"
+                  >
+                    <option value="">Use API status</option>
+                    {% for status in status_override_choices %}
+                      <option value="{{ status }}" {{ 'selected' if flight.override_status_text == status else '' }}>{{ status }}</option>
+                    {% endfor %}
+                  </select>
                   <input
                     type="text"
                     name="override_note"
@@ -131,7 +153,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="9" class="px-4 py-8 text-center text-sm uppercase tracking-[0.18em] text-slate-500">
+              <td colspan="10" class="px-4 py-8 text-center text-sm uppercase tracking-[0.18em] text-slate-500">
                 No flights loaded for today.
               </td>
             </tr>

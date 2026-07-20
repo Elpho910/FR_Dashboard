@@ -23,11 +23,12 @@ from werkzeug.security import check_password_hash
 
 from fr24_reporter.flights import AIRPORT_CODE, get_provider_label
 from fr24_reporter.store import (
-    clear_estimated_override,
+    STATUS_OVERRIDE_CHOICES,
+    clear_flight_overrides,
     get_admin_flights,
     get_board_flights,
     init_db,
-    set_estimated_override,
+    set_flight_overrides,
     sync_flights,
 )
 
@@ -156,6 +157,7 @@ def admin_flights():
         flights=flights,
         airport_timezone=AIRPORT_TIMEZONE,
         format_unix_local=format_unix_local,
+        status_override_choices=STATUS_OVERRIDE_CHOICES,
     )
 
 
@@ -168,20 +170,25 @@ def admin_override():
 
     try:
         if action == "clear":
-            clear_estimated_override(flight_key, airport_code=airport)
-            flash("Estimated-time override cleared.", "success")
+            clear_flight_overrides(flight_key, airport_code=airport)
+            flash("Manual overrides cleared.", "success")
         else:
             time_text = request.form.get("override_estimated_time", "").strip()
+            status_text = request.form.get("override_status_text", "").strip()
             note = request.form.get("override_note", "")
-            if not time_text:
-                raise ValueError("Enter a time in HH:MM format or use Clear Override.")
-            set_estimated_override(
+            set_flight_overrides(
                 flight_key,
-                time_text,
                 airport_code=airport,
+                time_text=time_text,
+                status_text=status_text,
                 note=note,
             )
-            flash("Estimated-time override saved.", "success")
+            if time_text and status_text:
+                flash("Time and status overrides saved.", "success")
+            elif time_text:
+                flash("Estimated-time override saved.", "success")
+            else:
+                flash("Status override saved.", "success")
     except KeyError:
         flash("Flight not found. Try refreshing the admin page.", "error")
     except ValueError as exc:

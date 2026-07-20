@@ -158,17 +158,30 @@ function estimatedTimeCell(flight) {
           </div>`;
 }
 
+const GREEN_STATUSES = new Set([
+  'On time',
+  'Check-in Open',
+  'Boarding',
+  'Departed',
+  'Landed',
+]);
+
+const RED_STATUSES = new Set([
+  'Check-in Closed',
+  'Final Call',
+  'Delayed',
+  'Cancelled',
+  'Diverted',
+]);
+
 function statusTone(statusText) {
-  const lower = statusText.toLowerCase();
-  if (lower.includes('arrived') || lower.includes('check in') || lower.includes('boarding') || lower.includes('open')) return 'status-green';
-  if (lower.includes('cancel') || lower.includes('closed')) return 'status-red';
-  if (lower.includes('delay') || lower.includes('gate closed') || lower.includes('last call')) return 'status-amber';
-  if (lower.includes('expected') || lower.includes('departed') || lower.includes('en route')) return 'status-blue';
+  if (GREEN_STATUSES.has(statusText)) return 'status-green';
+  if (RED_STATUSES.has(statusText)) return 'status-red';
   return 'status-neutral';
 }
 
 function statusCell(flight) {
-  const raw = (flight.status_text || 'Expected').trim();
+  const raw = (flight.status_text || 'On time').trim();
   return `<span class="status-box ${statusTone(raw)}">${raw}</span>`;
 }
 
