@@ -524,14 +524,15 @@
       return { label: 'Airline', className: 'airline-generic' };
     }
 
+    const AIRLINE_LOGOS = {
+      'airline-qantas': {{ url_for('static', filename='logos/QLK.png') | tojson }},
+      'airline-rex': {{ url_for('static', filename='logos/RXA.png') | tojson }},
+      'airline-sharp': {{ url_for('static', filename='logos/SHA.png') | tojson }},
+    };
+
     function airlineBadge(f) {
       const brand = airlineBrand(f);
-      const logoMap = {
-        'airline-qantas': './static/logos/QLK.png',
-        'airline-rex': './static/logos/RXA.png',
-        'airline-sharp': './static/logos/SHA.png',
-      };
-      const logoSrc = logoMap[brand.className];
+      const logoSrc = AIRLINE_LOGOS[brand.className];
       if (logoSrc) {
         return `<span class="airline-logo-tile"><img class="airline-logo" src="${logoSrc}" alt="${brand.label} logo" /></span>`;
       }
