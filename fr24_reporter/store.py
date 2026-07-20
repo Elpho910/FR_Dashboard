@@ -1,4 +1,4 @@
-"""SQLite-backed storage for synced flights and manual overrides."""
+"""SQLite-backed storage for synced flights, overrides, and trusted clients."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
-from .flights import AIRPORT_CODE, FlightInfo, fetch_bwt_flights
+from .flights import AIRPORT_CODE, FlightInfo, fetch_bwt_flights, get_provider_label
 
 load_dotenv()
 
@@ -78,6 +78,7 @@ def init_db() -> None:
         )
         _ensure_synced_flights_columns(conn)
         _ensure_override_schema(conn)
+        _ensure_trusted_client_schema(conn)
 
 
 def sync_flights(airport_code: str = AIRPORT_CODE, *, force: bool = False) -> None:
@@ -216,6 +217,19 @@ def get_board_flights(airport_code: str = AIRPORT_CODE, *, sync: bool = True) ->
     return {"inbound": inbound, "outbound": outbound}
 
 
+def get_client_board_payload(airport_code: str = AIRPORT_CODE, *, sync: bool = True) -> dict[str, Any]:
+    """Return the final normalized board payload for authenticated client devices."""
+    normalized_airport = airport_code.strip().upper()
+    flights = get_board_flights(normalized_airport, sync=sync)
+    return {
+        "airport": normalized_airport,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source_last_synced_at": _latest_sync_timestamp(normalized_airport),
+        "provider_label": get_provider_label(),
+        **flights,
+    }
+
+
 def get_admin_flights(airport_code: str = AIRPORT_CODE, *, sync: bool = True) -> list[dict[str, Any]]:
     """Return today's flights with override metadata for the admin panel."""
     if sync:
@@ -317,6 +331,79 @@ def clear_estimated_override(flight_key: str, *, airport_code: str = AIRPORT_COD
     clear_flight_overrides(flight_key, airport_code=airport_code)
 
 
+def upsert_trusted_client(
+    client_id: str,
+    client_secret: str,
+    *,
+    client_name: str = "",
+    enabled: bool = True,
+) -> None:
+    """Create or update a trusted client credential record."""
+    init_db()
+    normalized_client_id = client_id.strip()
+    if not normalized_client_id:
+        raise ValueError("client_id is required")
+    if not client_secret.strip():
+        raise ValueError("client_secret is required")
+
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO trusted_clients (
+                client_id, client_secret, client_name, enabled, last_seen_at, last_ip
+            ) VALUES (?, ?, ?, ?, NULL, NULL)
+            ON CONFLICT(client_id) DO UPDATE SET
+                client_secret = excluded.client_secret,
+                client_name = excluded.client_name,
+                enabled = excluded.enabled
+            """,
+            (normalized_client_id, client_secret.strip(), client_name.strip(), int(enabled)),
+        )
+
+
+def get_trusted_client(client_id: str) -> dict[str, Any] | None:
+    """Look up a trusted client by ID."""
+    init_db()
+    normalized_client_id = client_id.strip()
+    if not normalized_client_id:
+        return None
+
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT client_id, client_secret, client_name, enabled, last_seen_at, last_ip
+            FROM trusted_clients
+            WHERE client_id = ?
+            """,
+            (normalized_client_id,),
+        ).fetchone()
+    if row is None:
+        return None
+
+    result = dict(row)
+    result["enabled"] = bool(result["enabled"])
+    return result
+
+
+def mark_trusted_client_seen(client_id: str, *, last_ip: str | None = None, seen_at: str | None = None) -> None:
+    """Update last-seen metadata for a trusted client."""
+    init_db()
+    normalized_client_id = client_id.strip()
+    if not normalized_client_id:
+        return
+
+    actual_seen_at = seen_at or datetime.now(timezone.utc).isoformat()
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE trusted_clients
+            SET last_seen_at = ?, last_ip = ?
+            WHERE client_id = ?
+            """,
+            (actual_seen_at, (last_ip or "").strip() or None, normalized_client_id),
+        )
+
+
 def _ensure_synced_flights_columns(conn: sqlite3.Connection) -> None:
     existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(synced_flights)")}
     required_columns = {
@@ -345,6 +432,17 @@ def _ensure_override_schema(conn: sqlite3.Connection) -> None:
         """
     )
 
+    existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(flight_overrides)")}
+    required_columns = {
+        "override_estimated_time": "INTEGER",
+        "override_status_text": "TEXT",
+        "note": "TEXT",
+        "updated_at": "TEXT",
+    }
+    for column_name, column_type in required_columns.items():
+        if column_name not in existing_columns:
+            conn.execute(f"ALTER TABLE flight_overrides ADD COLUMN {column_name} {column_type}")
+
     old_table = conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'flight_time_overrides'"
     ).fetchone()
@@ -358,6 +456,32 @@ def _ensure_override_schema(conn: sqlite3.Connection) -> None:
             FROM flight_time_overrides
             """
         )
+
+
+def _ensure_trusted_client_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS trusted_clients (
+            client_id TEXT PRIMARY KEY,
+            client_secret TEXT NOT NULL,
+            client_name TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            last_seen_at TEXT,
+            last_ip TEXT
+        );
+        """
+    )
+
+    existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(trusted_clients)")}
+    required_columns = {
+        "client_name": "TEXT",
+        "enabled": "INTEGER NOT NULL DEFAULT 1",
+        "last_seen_at": "TEXT",
+        "last_ip": "TEXT",
+    }
+    for column_name, column_type in required_columns.items():
+        if column_name not in existing_columns:
+            conn.execute(f"ALTER TABLE trusted_clients ADD COLUMN {column_name} {column_type}")
 
 
 def get_flight_for_admin(flight_key: str, airport_code: str = AIRPORT_CODE) -> dict[str, Any]:
@@ -459,6 +583,30 @@ def _merge_row_for_display(row: dict[str, Any]) -> dict[str, Any]:
             actual_time=row.get("actual_time"),
         )
     return row
+
+
+def _latest_sync_timestamp(airport_code: str) -> str | None:
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT MAX(last_synced_at) AS latest_sync
+            FROM synced_flights
+            WHERE airport_code = ? AND service_date = ?
+            """,
+            (airport_code, _today_service_date()),
+        ).fetchone()
+        latest_sync = row["latest_sync"] if row is not None else None
+        if latest_sync:
+            return str(latest_sync)
+
+        sync_row = conn.execute(
+            "SELECT last_sync_epoch FROM sync_state WHERE airport_code = ?",
+            (airport_code,),
+        ).fetchone()
+
+    if sync_row is None:
+        return None
+    return datetime.fromtimestamp(int(sync_row["last_sync_epoch"]), tz=timezone.utc).isoformat()
 
 
 def _display_sort_key(flight: dict[str, Any]) -> int:

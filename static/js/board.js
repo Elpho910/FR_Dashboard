@@ -10,6 +10,11 @@ const API_FLIGHTS_URL = boardConfig.api_flights_url;
 const BROWSER_HARD_REFRESH_SECONDS = boardConfig.browser_hard_refresh_seconds;
 const AIRPORT_NAME_MAP = boardConfig.airport_name_map;
 const AIRLINE_LOGOS = boardConfig.airline_logos;
+const APP_ROLE = boardConfig.app_role;
+const INITIAL_PROVIDER_LABEL = boardConfig.provider_label;
+
+const providerLabelElement = document.getElementById('provider-label');
+const syncIndicatorElement = document.getElementById('sync-indicator');
 
 function formatInAirportTimezone(date, options) {
   return new Intl.DateTimeFormat('en-AU', {
@@ -141,9 +146,7 @@ function estimatedTimeCell(flight) {
   const actualTime = flight.actual_time || flight.real_time;
   const scheduled = fmtTime(flight.scheduled_time);
   if (actualTime) {
-    return `<div>
-              <div class="time-value actual">${fmtTime(actualTime)}</div>
-            </div>`;
+    return `<div><div class="time-value actual">${fmtTime(actualTime)}</div></div>`;
   }
 
   const estimated = fmtTime(flight.estimated_time) || scheduled;
@@ -153,9 +156,7 @@ function estimatedTimeCell(flight) {
 
   const changed = scheduled && estimated !== scheduled;
   const classes = changed ? 'time-value estimated' : 'time-value estimated same';
-  return `<div>
-            <div class="${classes}">${estimated}</div>
-          </div>`;
+  return `<div><div class="${classes}">${estimated}</div></div>`;
 }
 
 const GREEN_STATUSES = new Set([
@@ -185,9 +186,16 @@ function statusCell(flight) {
   return `<span class="status-box ${statusTone(raw)}">${raw}</span>`;
 }
 
-function buildRows(flights, direction) {
+function emptyStateMessage(payload) {
+  if (payload?.cache_status === 'empty' || payload?.cache_status === 'offline-empty') {
+    return 'Waiting for server sync...';
+  }
+  return 'No flights listed for today';
+}
+
+function buildRows(flights, direction, noRowsMessage) {
   if (!flights || flights.length === 0) {
-    return '<div class="fids-empty">No flights listed for today</div>';
+    return `<div class="fids-empty">${noRowsMessage}</div>`;
   }
   return flights.map((flight) => {
     const ident = flight.flight_number || flight.callsign || '—';
@@ -204,6 +212,48 @@ function buildRows(flights, direction) {
   }).join('');
 }
 
+function syncIndicatorState(payload) {
+  if (APP_ROLE !== 'client') {
+    return { hidden: true, className: 'sync-indicator', title: '' };
+  }
+
+  switch (payload?.cache_status) {
+    case 'fresh':
+      return { hidden: false, className: 'sync-indicator sync-fresh', title: 'Client synced recently' };
+    case 'offline-stale':
+      return {
+        hidden: false,
+        className: 'sync-indicator sync-stale',
+        title: payload?.client_last_error
+          ? `Displaying cached data: ${payload.client_last_error}`
+          : 'Displaying cached data',
+      };
+    case 'offline-empty':
+      return {
+        hidden: false,
+        className: 'sync-indicator sync-offline',
+        title: payload?.client_last_error
+          ? `Waiting for first successful sync: ${payload.client_last_error}`
+          : 'Waiting for first successful sync',
+      };
+    case 'empty':
+      return { hidden: false, className: 'sync-indicator sync-pending', title: 'Waiting for first successful sync' };
+    default:
+      return { hidden: false, className: 'sync-indicator sync-pending', title: 'Client sync status unavailable' };
+  }
+}
+
+function applyFooterState(payload) {
+  providerLabelElement.textContent = payload?.provider_label || INITIAL_PROVIDER_LABEL;
+
+  const indicator = syncIndicatorState(payload);
+  syncIndicatorElement.hidden = indicator.hidden;
+  syncIndicatorElement.className = indicator.className;
+  syncIndicatorElement.title = indicator.title;
+  syncIndicatorElement.setAttribute('aria-label', indicator.title || '');
+  syncIndicatorElement.setAttribute('aria-hidden', indicator.hidden ? 'true' : 'false');
+}
+
 async function loadFlights() {
   try {
     const apiUrl = `${API_FLIGHTS_URL}?airport=${encodeURIComponent(AIRPORT)}&_=${Date.now()}`;
@@ -217,12 +267,14 @@ async function loadFlights() {
 
     const inbound = data.inbound || [];
     const outbound = data.outbound || [];
+    const noRowsMessage = emptyStateMessage(data);
 
     document.getElementById('board-airport-name').textContent = locationDisplayName(AIRPORT);
-    document.getElementById('arrivals-body').innerHTML = buildRows(inbound, 'inbound');
-    document.getElementById('departures-body').innerHTML = buildRows(outbound, 'outbound');
+    document.getElementById('arrivals-body').innerHTML = buildRows(inbound, 'inbound', noRowsMessage);
+    document.getElementById('departures-body').innerHTML = buildRows(outbound, 'outbound', noRowsMessage);
     document.getElementById('arrivals-count').textContent = `${inbound.length} listed`;
     document.getElementById('departures-count').textContent = `${outbound.length} listed`;
+    applyFooterState(data);
   } catch (error) {
     console.error('Failed to load flights', error);
   }
@@ -235,4 +287,5 @@ setInterval(tickCountdown, 1000);
 if (BROWSER_HARD_REFRESH_SECONDS > 0) {
   setInterval(() => window.location.reload(), BROWSER_HARD_REFRESH_SECONDS * 1000);
 }
+applyFooterState(null);
 loadFlights();

@@ -1,0 +1,15 @@
+services:
+  fr_dashboard_server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: fr_dashboard_server
+    env_file:
+      - ../.env.server
+    environment:
+      APP_ROLE: server
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../data/server:/app/data
+    restart: unless-stopped

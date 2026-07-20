@@ -13,10 +13,13 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py main.py ./
+COPY entrypoint.sh ./entrypoint.sh
 COPY fr24_reporter ./fr24_reporter
 COPY templates ./templates
 COPY static ./static
 
+RUN chmod +x /app/entrypoint.sh
+
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "60", "app:app"]
+CMD ["/app/entrypoint.sh"]

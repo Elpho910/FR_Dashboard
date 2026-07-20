@@ -67,7 +67,14 @@
       </section>
     </main>
 
-    <div class="board-footer">{{ provider_label }} · Airport local time · {{ airport_timezone }}</div>
+    <div class="board-footer">
+      <span id="provider-label">{{ provider_label }}</span>
+      <span>&middot;</span>
+      <span>Airport local time</span>
+      <span>&middot;</span>
+      <span>{{ airport_timezone }}</span>
+      <span id="sync-indicator" class="sync-indicator" hidden aria-hidden="true"></span>
+    </div>
   </div>
 
   <script id="board-config" type="application/json">{{ {
@@ -78,6 +85,8 @@
     'refresh_window_end': refresh_window_end,
     'browser_hard_refresh_seconds': browser_hard_refresh_seconds,
     'api_flights_url': url_for('api_flights'),
+    'app_role': app_role,
+    'provider_label': provider_label,
     'airport_name_map': {
       'ADL': 'Adelaide',
       'AVV': 'Melbourne Avalon',

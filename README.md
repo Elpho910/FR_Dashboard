@@ -17,8 +17,12 @@ The default airport code is `BWT`. Both providers map `BWT` to the canonical Bur
 ├── main.py                          # CLI entry point
 ├── fr24_reporter/
 │   ├── flights.py                   # Provider switch, fetch, and normalization logic
+│   ├── client_auth.py               # HMAC signing helpers for Pi clients
+│   ├── client_store.py              # Local SQLite cache for Pi clients
+│   ├── client_sync.py               # Pull latest board snapshots from the server
+│   ├── role_config.py               # Server/client role-specific runtime config
 │   ├── report.py                    # Terminal report formatting
-│   └── store.py                     # SQLite sync and override persistence
+│   └── store.py                     # SQLite sync, overrides, and trusted clients
 ├── templates/
 │   ├── index.html                   # Frontend UI served by Flask
 │   ├── admin_login.html             # Admin login page
@@ -27,9 +31,12 @@ The default airport code is `BWT`. Both providers map `BWT` to the canonical Bur
 │   ├── fr-dashboard-kiosk.sh        # Chromium kiosk launcher
 │   ├── fr-dashboard-browser.service # Example user systemd service
 │   └── fr-dashboard.desktop         # Example desktop autostart entry
+├── manage_clients.py                # Helper to provision new Pi client credentials
 ├── .env.example                     # Example environment configuration
 ├── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml               # Legacy single-node compose file
+├── deploy/docker-compose.server.yml # Central server deployment
+├── deploy/docker-compose.client.yml # Raspberry Pi client deployment
 └── requirements.txt
 ```
 
@@ -51,6 +58,7 @@ cp .env.example .env
 
 Environment variables:
 
+- `APP_ROLE`: `server` or `client`
 - `FLIGHT_DATA_PROVIDER`: `flightaware` or `aerodatabox`
 - `FLIGHTAWARE_API_KEY`: your FlightAware AeroAPI key when using FlightAware
 - `AERODATABOX_MARKETPLACE`: `apimarket` or `rapidapi`
@@ -59,10 +67,17 @@ Environment variables:
 - `AERODATABOX_RAPIDAPI_HOST`: optional RapidAPI host override, default `aerodatabox.p.rapidapi.com`
 - `FLIGHT_BOARD_REFRESH_SECONDS`: browser refresh cadence in seconds, default `7200`
 - `FLIGHT_DATA_CACHE_SECONDS`: backend sync throttle in seconds, default `7200`
+- `BROWSER_HARD_REFRESH_SECONDS`: optional full-page kiosk reload interval, default `0`
 - `FLIGHT_REFRESH_START_TIME`: airport-local start time for automatic syncs and browser polling, default `05:00`
 - `FLIGHT_REFRESH_END_TIME`: airport-local finish time for automatic syncs and browser polling, default `22:00`
 - `FLIGHTAWARE_CACHE_SECONDS`: legacy cache variable still supported for backward compatibility
-- `FLIGHT_DB_PATH`: SQLite file path, default `data/fr_dashboard.sqlite3`
+- `FLIGHT_DB_PATH`: SQLite file path for the server, default `data/fr_dashboard.sqlite3`
+- `CLIENT_CACHE_DB_PATH`: SQLite file path for the Pi local cache, default `data/client_cache.sqlite3`
+- `CLIENT_SYNC_SECONDS`: how often a Pi client is allowed to pull a fresh snapshot from the server, default `30`
+- `CLIENT_AUTH_MAX_SKEW_SECONDS`: allowed clock skew for signed client requests, default `60`
+- `SERVER_BASE_URL`: base URL of the central server for client mode
+- `CLIENT_ID`: trusted client ID for a Raspberry Pi display
+- `CLIENT_SECRET`: trusted client secret for a Raspberry Pi display
 - `HOST`: web bind host, default `0.0.0.0`
 - `PORT`: web port, default `5000`
 - `FLASK_DEBUG`: set to `1` for local debug mode, `0` for container/kiosk use
@@ -109,7 +124,7 @@ pip install -r requirements.txt
 Start the Flask app:
 
 ```bash
-python3 app.py
+APP_ROLE=server python3 app.py
 ```
 
 The backend listens on `http://127.0.0.1:5000` by default.
@@ -124,6 +139,36 @@ Useful routes:
 - Force-sync JSON API: `http://127.0.0.1:5000/api/flights?refresh=1`
 - Admin login: `http://127.0.0.1:5000/admin/login`
 - Admin overrides: `http://127.0.0.1:5000/admin`
+
+## Provision a client Pi
+
+When you want to add a new Raspberry Pi display client, run:
+
+```bash
+./.venv/bin/python manage_clients.py "Burnie Main Screen"
+```
+
+That command will:
+
+- generate a unique `client_id`
+- generate a random `client_secret`
+- save both into the server's trusted-client registry
+- print the exact `.env` values to paste onto the Pi
+
+Example output:
+
+```env
+APP_ROLE=client
+SERVER_BASE_URL=https://your-server-url
+CLIENT_ID=client-burnie-main-screen
+CLIENT_SECRET=example-generated-secret
+```
+
+If you want to force a specific client ID:
+
+```bash
+./.venv/bin/python manage_clients.py "Burnie Main Screen" --client-id bwt-pi-01
+```
 
 ## Admin overrides
 
@@ -168,25 +213,37 @@ python3 main.py --json
 
 ## Docker
 
-Build and start the app:
+Single-node development mode:
 
 ```bash
 docker compose up -d --build
 ```
 
+Central server mode:
+
+```bash
+docker compose -f deploy/docker-compose.server.yml up -d --build
+```
+
+Raspberry Pi client mode:
+
+```bash
+docker compose -f deploy/docker-compose.client.yml up -d --build
+```
+
 View logs:
 
 ```bash
-docker compose logs -f
+docker compose -f deploy/docker-compose.server.yml logs -f
 ```
 
-Stop it:
+Stop a deployment:
 
 ```bash
-docker compose down
+docker compose -f deploy/docker-compose.server.yml down
 ```
 
-The container publishes the board on `http://127.0.0.1:5000/`, persists SQLite data through `./data:/app/data`, and uses `restart: unless-stopped`, so once it has been started it will come back after a reboot as long as Docker starts normally.
+The server keeps the provider API keys and the main SQLite store. Each Pi client keeps its own local SQLite cache and serves the board locally, so if the uplink drops it can continue showing the last good snapshot instead of going blank.
 
 ## Raspberry Pi install checklist
 

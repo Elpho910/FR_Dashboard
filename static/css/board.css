@@ -290,11 +290,43 @@ body {
 
 .board-footer {
   margin-top: 12px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   color: var(--muted);
   font-size: 0.74rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.sync-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  display: inline-block;
+  opacity: 0.42;
+  background: var(--status-blue);
+  box-shadow: 0 0 6px rgba(79, 134, 223, 0.2);
+}
+
+.sync-fresh {
+  background: var(--status-green);
+  box-shadow: 0 0 6px rgba(118, 214, 79, 0.2);
+}
+
+.sync-stale {
+  background: var(--status-amber);
+  box-shadow: 0 0 6px rgba(210, 176, 65, 0.22);
+}
+
+.sync-offline {
+  background: var(--status-red);
+  box-shadow: 0 0 6px rgba(211, 74, 114, 0.22);
+}
+
+.sync-pending {
+  background: var(--status-blue);
 }
 
 @media (max-width: 900px) {
