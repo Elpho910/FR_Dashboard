@@ -55,11 +55,11 @@ body {
 
 .board-brand-glow {
   position: absolute;
-  inset: 6px 4px;
+  inset: -10px -18px -12px -12px;
   border-radius: 28px;
-  background: radial-gradient(circle at 22% 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.07) 54%, transparent 82%);
-  filter: blur(22px);
-  opacity: 0.8;
+  background: radial-gradient(circle at 26% 50%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.12) 42%, rgba(255, 255, 255, 0.03) 68%, transparent 86%);
+  filter: blur(30px);
+  opacity: 0.9;
   pointer-events: none;
 }
 
@@ -68,34 +68,22 @@ body {
   z-index: 1;
   width: fit-content;
   max-width: 100%;
-  padding: 10px 14px;
-  border-radius: 24px;
-  background: linear-gradient(180deg, rgba(17, 22, 34, 0.78), rgba(10, 14, 22, 0.62));
+  padding: 12px 16px;
+  background: #ffffff;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 14px 34px rgba(0, 0, 0, 0.24);
-  overflow: hidden;
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 10px 24px rgba(0, 0, 0, 0.16);
 }
 
-.board-brand-frame::after {
+.board-brand-frame::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg,
-      rgba(7, 10, 18, 0.92) 0,
-      rgba(7, 10, 18, 0) 24px,
-      rgba(7, 10, 18, 0) calc(100% - 24px),
-      rgba(7, 10, 18, 0.92) 100%),
-    linear-gradient(180deg,
-      rgba(7, 10, 18, 0.94) 0,
-      rgba(7, 10, 18, 0) 18px,
-      rgba(7, 10, 18, 0) calc(100% - 18px),
-      rgba(7, 10, 18, 0.94) 100%),
-    radial-gradient(circle at 0 0, rgba(7, 10, 18, 0.95), transparent 28%),
-    radial-gradient(circle at 100% 0, rgba(7, 10, 18, 0.95), transparent 28%),
-    radial-gradient(circle at 0 100%, rgba(7, 10, 18, 0.95), transparent 28%),
-    radial-gradient(circle at 100% 100%, rgba(7, 10, 18, 0.95), transparent 28%);
+  inset: -18px -22px;
+  border-radius: 28px;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.12) 48%, rgba(255, 255, 255, 0.03) 72%, transparent 88%);
+  filter: blur(18px);
+  opacity: 0.95;
+  z-index: -1;
   pointer-events: none;
 }
 
@@ -106,9 +94,10 @@ body {
   max-width: 100%;
   height: auto;
   display: block;
+  background: #ffffff;
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.14),
-    0 0 22px rgba(255, 255, 255, 0.06);
+    0 0 0 2px rgba(255, 255, 255, 0.96),
+    0 0 18px rgba(255, 255, 255, 0.16);
   filter: saturate(0.98) brightness(1.01);
 }
 
@@ -382,8 +371,7 @@ body {
   }
 
   .board-brand-frame {
-    padding: 8px 10px;
-    border-radius: 20px;
+    padding: 10px 12px;
   }
 
   .board-brand-logo {
