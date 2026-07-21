@@ -681,6 +681,7 @@ def _flight_key_for(airport_code: str, direction: str, flight: FlightInfo) -> st
     ident = (flight.flight_number or flight.callsign or flight.flight_id or "unknown").upper()
     origin = (flight.origin_iata or "UNK").upper()
     destination = (flight.destination_iata or "UNK").upper()
+    service_marker = str(flight.scheduled_time or flight.estimated_time or flight.real_time or "unknown")
     return "|".join(
         (
             airport_code.upper(),
@@ -689,6 +690,7 @@ def _flight_key_for(airport_code: str, direction: str, flight: FlightInfo) -> st
             ident,
             origin,
             destination,
+            service_marker,
         )
     )
 
