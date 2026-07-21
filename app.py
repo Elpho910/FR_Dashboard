@@ -250,6 +250,7 @@ def admin_flights():
         airport=airport,
         flights=flights,
         airport_timezone=AIRPORT_TIMEZONE,
+        provider_label=get_provider_label(),
         format_unix_local=format_unix_local,
         status_override_choices=STATUS_OVERRIDE_CHOICES,
     )

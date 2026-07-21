@@ -245,7 +245,9 @@ function syncIndicatorState(payload) {
 }
 
 function applyFooterState(payload) {
-  providerLabelElement.textContent = payload?.provider_label || INITIAL_PROVIDER_LABEL;
+  if (providerLabelElement) {
+    providerLabelElement.textContent = payload?.provider_label || INITIAL_PROVIDER_LABEL;
+  }
 
   const indicator = syncIndicatorState(payload);
   syncIndicatorElement.hidden = indicator.hidden;
