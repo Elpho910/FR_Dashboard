@@ -45,50 +45,34 @@ body {
   border-bottom: 2px solid var(--line);
 }
 
-.board-brand {
-  position: relative;
+.board-title-wrap {
   display: flex;
   align-items: center;
+  gap: 16px;
   min-width: 0;
-  padding: 8px 18px 8px 10px;
 }
 
-.board-brand-glow {
-  position: absolute;
-  inset: -8px -14px -10px -10px;
-  border-radius: 34px;
-  background: radial-gradient(circle at 24% 50%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08) 44%, rgba(255, 255, 255, 0.02) 70%, transparent 88%);
-  filter: blur(30px);
-  opacity: 0.75;
-  pointer-events: none;
+.board-plane {
+  font-size: clamp(2rem, 3.2vw, 3rem);
+  line-height: 1;
+  color: var(--text);
+  transform: translateY(-2px);
 }
 
-.board-brand-frame {
-  position: relative;
-  z-index: 1;
-  width: fit-content;
-  max-width: 100%;
-  padding: 0;
-  background: transparent;
-  box-shadow: none;
+.board-title {
+  margin: 0;
+  font-size: clamp(2.35rem, 5vw, 4.15rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  font-weight: 700;
 }
 
-.board-brand-frame::before {
-  content: none;
-}
-
-.board-brand-logo {
-  position: relative;
-  z-index: 1;
-  width: clamp(220px, 34vw, 460px);
-  max-width: 100%;
-  height: auto;
-  display: block;
-  background: transparent;
-  box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.16),
-    0 0 18px rgba(255, 255, 255, 0.08);
-  filter: saturate(0.99) brightness(1.01);
+.board-subtitle {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
 }
 
 .clock-panel {
@@ -355,17 +339,13 @@ body {
     flex-direction: column;
   }
 
-  .board-brand {
-    width: 100%;
-    padding: 4px 6px 2px 2px;
+  .board-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
-  .board-brand-frame {
-    padding: 0;
-  }
-
-  .board-brand-logo {
-    width: min(100%, 360px);
+  .clock-panel {
+    text-align: left;
   }
 
   .clock-panel {
