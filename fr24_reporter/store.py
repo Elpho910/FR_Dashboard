@@ -645,24 +645,19 @@ def _row_is_relevant(flight: dict[str, Any]) -> bool:
 
     airport_tz = _airport_timezone()
     now_local = datetime.now(airport_tz)
-    flight_time = datetime.fromtimestamp(int(best_time), tz=timezone.utc).astimezone(airport_tz)
-    if flight_time.date() != now_local.date():
+    display_time = datetime.fromtimestamp(int(best_time), tz=timezone.utc).astimezone(airport_tz)
+    if display_time.date() != now_local.date():
         return False
 
     retention = _completed_retention()
     actual_time = flight.get("actual_time")
     if actual_time is not None:
         completed_at = datetime.fromtimestamp(int(actual_time), tz=timezone.utc).astimezone(airport_tz)
-        if completed_at + retention < now_local:
-            return False
-        return True
+        return completed_at + retention >= now_local
 
-    if flight.get("estimated_time") is None and flight.get("scheduled_time") is not None:
-        scheduled_at = datetime.fromtimestamp(int(flight["scheduled_time"]), tz=timezone.utc).astimezone(airport_tz)
-        if scheduled_at + retention < now_local:
-            return False
-
-    return True
+    # Some providers never populate actual_time for completed regional services,
+    # so any past scheduled/estimated service should still age off the board.
+    return display_time + retention >= now_local
 
 
 def _service_date_for_flight(flight: FlightInfo) -> str:
