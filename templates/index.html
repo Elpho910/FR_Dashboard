@@ -14,11 +14,13 @@
     <header class="board-header">
       <div class="board-brand" aria-label="Burnie Airport">
         <div class="board-brand-glow"></div>
-        <img
-          class="board-brand-logo"
-          src="{{ url_for('static', filename='logos/Burnie_Airport.jpg') }}"
-          alt="Burnie Airport"
-        />
+        <div class="board-brand-frame">
+          <img
+            class="board-brand-logo"
+            src="{{ url_for('static', filename='logos/Burnie_Airport.jpg') }}"
+            alt="Burnie Airport"
+          />
+        </div>
       </div>
       <div class="clock-panel">
         <div class="clock" id="clock">--:--</div>
