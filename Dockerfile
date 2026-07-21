@@ -12,7 +12,7 @@ RUN apt-get update \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py main.py ./
+COPY app.py main.py manage_clients.py ./
 COPY entrypoint.sh ./entrypoint.sh
 COPY fr24_reporter ./fr24_reporter
 COPY templates ./templates
