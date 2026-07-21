@@ -15,6 +15,7 @@ const INITIAL_PROVIDER_LABEL = boardConfig.provider_label;
 
 const providerLabelElement = document.getElementById('provider-label');
 const syncIndicatorElement = document.getElementById('sync-indicator');
+const boardAirportNameElement = document.getElementById('board-airport-name');
 
 function formatInAirportTimezone(date, options) {
   return new Intl.DateTimeFormat('en-AU', {
@@ -269,7 +270,9 @@ async function loadFlights() {
     const outbound = data.outbound || [];
     const noRowsMessage = emptyStateMessage(data);
 
-    document.getElementById('board-airport-name').textContent = locationDisplayName(AIRPORT);
+    if (boardAirportNameElement) {
+      boardAirportNameElement.textContent = locationDisplayName(AIRPORT);
+    }
     document.getElementById('arrivals-body').innerHTML = buildRows(inbound, 'inbound', noRowsMessage);
     document.getElementById('departures-body').innerHTML = buildRows(outbound, 'outbound', noRowsMessage);
     document.getElementById('arrivals-count').textContent = `${inbound.length} listed`;
