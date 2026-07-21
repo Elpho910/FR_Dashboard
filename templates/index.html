@@ -12,12 +12,13 @@
 <body>
   <div class="board-shell">
     <header class="board-header">
-      <div class="board-title-wrap">
-        <div class="board-plane">&#9992;</div>
-        <div>
-          <h1 class="board-title"><span id="board-airport-name">{{ airport }}</span> Flights</h1>
-          <div class="board-subtitle">Flight Information Display</div>
-        </div>
+      <div class="board-brand" aria-label="Burnie Airport">
+        <div class="board-brand-glow"></div>
+        <img
+          class="board-brand-logo"
+          src="{{ url_for('static', filename='logos/Burnie_Airport.jpg') }}"
+          alt="Burnie Airport"
+        />
       </div>
       <div class="clock-panel">
         <div class="clock" id="clock">--:--</div>
