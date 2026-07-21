@@ -45,34 +45,32 @@ body {
   border-bottom: 2px solid var(--line);
 }
 
-.board-title-wrap {
+.board-brand {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 16px;
   min-width: 0;
+  padding: 6px 12px 4px 2px;
 }
 
-.board-plane {
-  font-size: clamp(2rem, 3.2vw, 3rem);
-  line-height: 1;
-  color: var(--text);
-  transform: translateY(-2px);
+.board-brand-glow {
+  position: absolute;
+  inset: 4px 0 0 -6px;
+  border-radius: 30px;
+  background: radial-gradient(circle at 26% 50%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04) 50%, transparent 82%);
+  filter: blur(24px);
+  opacity: 0.7;
+  pointer-events: none;
 }
 
-.board-title {
-  margin: 0;
-  font-size: clamp(2.35rem, 5vw, 4.15rem);
-  line-height: 0.95;
-  letter-spacing: -0.05em;
-  font-weight: 700;
-}
-
-.board-subtitle {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
+.board-brand-logo {
+  position: relative;
+  z-index: 1;
+  width: clamp(240px, 38vw, 520px);
+  max-width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.22));
 }
 
 .clock-panel {
@@ -339,13 +337,13 @@ body {
     flex-direction: column;
   }
 
-  .board-header {
-    align-items: flex-start;
-    flex-direction: column;
+  .board-brand {
+    width: 100%;
+    padding: 2px 6px 2px 0;
   }
 
-  .clock-panel {
-    text-align: left;
+  .board-brand-logo {
+    width: min(100%, 400px);
   }
 
   .clock-panel {
