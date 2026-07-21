@@ -106,7 +106,7 @@ function firstNonEmpty(...values) {
 function flightLocationName(flight, direction) {
   const nameKey = direction === 'inbound' ? 'origin_name' : 'destination_name';
   const codeKey = direction === 'inbound' ? 'origin_iata' : 'destination_iata';
-  return firstNonEmpty(flight[nameKey], locationDisplayName(flight[codeKey]), '—') || '—';
+  return firstNonEmpty(locationDisplayName(flight[codeKey]), flight[nameKey], '—') || '—';
 }
 
 function airlineBrand(flight) {

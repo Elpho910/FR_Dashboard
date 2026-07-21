@@ -362,11 +362,14 @@ def _movement_airport_code(movement: dict[str, Any]) -> Optional[str]:
 
 def _movement_airport_name(movement: dict[str, Any]) -> Optional[str]:
     airport = movement.get("airport") or {}
+    display_name = _airport_display_name(airport.get("iata") or airport.get("icao") or airport.get("localCode"))
+    if display_name:
+        return display_name
     for key in ("municipalityName", "shortName", "name"):
         value = _friendly_airport_name(airport.get(key))
         if value:
             return value
-    return _airport_display_name(airport.get("iata") or airport.get("icao") or airport.get("localCode"))
+    return None
 
 
 def _pick_aerodatabox_time(movement: dict[str, Any], key: str) -> Optional[int]:
@@ -531,11 +534,14 @@ def _flightaware_status_text(flight: dict[str, Any], direction: str) -> str:
 
 
 def _airport_dict_name(airport: dict[str, Any]) -> Optional[str]:
+    display_name = _airport_display_name(airport.get("code_iata") or airport.get("code") or airport.get("code_icao"))
+    if display_name:
+        return display_name
     for key in ("city", "name"):
         value = _friendly_airport_name(airport.get(key))
         if value:
             return value
-    return _airport_display_name(airport.get("code_iata") or airport.get("code") or airport.get("code_icao"))
+    return None
 
 
 def _operator_display_name(flight: dict[str, Any]) -> Optional[str]:
