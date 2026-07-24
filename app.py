@@ -52,6 +52,7 @@ ROLE_CONFIG = load_role_config()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-before-production")
 REFRESH_SECONDS = int(os.getenv("FLIGHT_BOARD_REFRESH_SECONDS", "7200"))
+DISPLAY_WINDOW_HOURS = max(0, int(os.getenv("FLIGHT_DISPLAY_WINDOW_HOURS", "3")))
 AIRPORT_TIMEZONE = os.getenv("AIRPORT_TIMEZONE", "Australia/Hobart")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
@@ -168,6 +169,7 @@ def index():
         provider_label=get_provider_label(),
         refresh_window_start=os.getenv("FLIGHT_REFRESH_START_TIME", "05:00"),
         refresh_window_end=os.getenv("FLIGHT_REFRESH_END_TIME", "22:00"),
+        display_window_hours=DISPLAY_WINDOW_HOURS,
         browser_hard_refresh_seconds=ROLE_CONFIG.browser_hard_refresh_seconds,
         app_role=ROLE_CONFIG.app_role,
     )

@@ -6,6 +6,7 @@ const AIRPORT_TIMEZONE = boardConfig.airport_timezone;
 const REFRESH_INTERVAL = boardConfig.refresh_interval;
 const REFRESH_WINDOW_START = boardConfig.refresh_window_start;
 const REFRESH_WINDOW_END = boardConfig.refresh_window_end;
+const DISPLAY_WINDOW_HOURS = Number(boardConfig.display_window_hours || 0);
 const API_FLIGHTS_URL = boardConfig.api_flights_url;
 const BROWSER_HARD_REFRESH_SECONDS = boardConfig.browser_hard_refresh_seconds;
 const AIRPORT_NAME_MAP = boardConfig.airport_name_map;
@@ -196,6 +197,32 @@ function emptyStateMessage(payload) {
   return 'No flights listed for today';
 }
 
+function bestFlightTime(flight) {
+  return flight.actual_time || flight.real_time || flight.estimated_time || flight.scheduled_time || null;
+}
+
+function displayWindowFlights(flights) {
+  if (!Array.isArray(flights)) return [];
+  if (!(DISPLAY_WINDOW_HOURS > 0)) return flights;
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const windowEndEpoch = nowEpoch + (DISPLAY_WINDOW_HOURS * 3600);
+  return flights.filter((flight) => {
+    const flightTime = bestFlightTime(flight);
+    return flightTime && flightTime >= nowEpoch && flightTime <= windowEndEpoch;
+  });
+}
+
+function displayWindowEmptyMessage(payload, direction, totalFlights, visibleFlights) {
+  if (visibleFlights > 0 || totalFlights === 0 || !(DISPLAY_WINDOW_HOURS > 0)) {
+    return emptyStateMessage(payload);
+  }
+
+  return direction === 'inbound'
+    ? `No arrivals in next ${DISPLAY_WINDOW_HOURS} hours`
+    : `No departures in next ${DISPLAY_WINDOW_HOURS} hours`;
+}
+
 function buildRows(flights, direction, noRowsMessage) {
   if (!flights || flights.length === 0) {
     return `<div class="fids-empty">${noRowsMessage}</div>`;
@@ -270,15 +297,18 @@ async function loadFlights() {
     }
     if (data?.error) throw new Error(data.error);
 
-    const inbound = data.inbound || [];
-    const outbound = data.outbound || [];
-    const noRowsMessage = emptyStateMessage(data);
+    const inboundAll = data.inbound || [];
+    const outboundAll = data.outbound || [];
+    const inbound = displayWindowFlights(inboundAll);
+    const outbound = displayWindowFlights(outboundAll);
+    const inboundMessage = displayWindowEmptyMessage(data, 'inbound', inboundAll.length, inbound.length);
+    const outboundMessage = displayWindowEmptyMessage(data, 'outbound', outboundAll.length, outbound.length);
 
     if (boardAirportNameElement) {
       boardAirportNameElement.textContent = locationDisplayName(AIRPORT);
     }
-    document.getElementById('arrivals-body').innerHTML = buildRows(inbound, 'inbound', noRowsMessage);
-    document.getElementById('departures-body').innerHTML = buildRows(outbound, 'outbound', noRowsMessage);
+    document.getElementById('arrivals-body').innerHTML = buildRows(inbound, 'inbound', inboundMessage);
+    document.getElementById('departures-body').innerHTML = buildRows(outbound, 'outbound', outboundMessage);
     document.getElementById('arrivals-count').textContent = `${inbound.length} listed`;
     document.getElementById('departures-count').textContent = `${outbound.length} listed`;
     applyFooterState(data);
