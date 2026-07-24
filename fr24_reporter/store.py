@@ -32,6 +32,7 @@ STATUS_OVERRIDE_CHOICES = (
     "Cancelled",
     "Diverted",
 )
+COMPLETED_STATUS_OVERRIDES = {"Departed", "Landed"}
 _STATUS_OVERRIDE_LOOKUP = {status.lower(): status for status in STATUS_OVERRIDE_CHOICES}
 
 
@@ -652,6 +653,13 @@ def _row_is_relevant(flight: dict[str, Any]) -> bool:
         return False
 
     retention = _completed_retention()
+    override_status_text = flight.get("override_status_text")
+    if override_status_text in COMPLETED_STATUS_OVERRIDES:
+        override_updated_at = _parse_override_timestamp(flight.get("override_updated_at"))
+        if override_updated_at is not None:
+            completed_at = override_updated_at.astimezone(airport_tz)
+            return completed_at + retention >= now_local
+
     actual_time = flight.get("actual_time")
     if actual_time is not None:
         completed_at = datetime.fromtimestamp(int(actual_time), tz=timezone.utc).astimezone(airport_tz)
@@ -777,6 +785,21 @@ def _airport_timezone() -> ZoneInfo:
 
 def _completed_retention() -> timedelta:
     return timedelta(minutes=int(os.getenv("FLIGHT_COMPLETED_RETENTION_MINUTES", "30")))
+
+
+def _parse_override_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    try:
+        parsed = datetime.fromisoformat(cleaned)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def _cache_seconds() -> int:
