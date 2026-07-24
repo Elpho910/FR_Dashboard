@@ -580,6 +580,7 @@ def _merge_row_for_display(row: dict[str, Any]) -> dict[str, Any]:
     row["api_flight_number"] = row.get("flight_number")
     row["api_callsign"] = row.get("callsign")
     row["api_estimated_time"] = row.get("estimated_time")
+    row["api_actual_time"] = row.get("actual_time")
     row["api_status_text"] = _normalize_status_text(
         raw_status_text,
         direction=row.get("direction"),
@@ -594,8 +595,9 @@ def _merge_row_for_display(row: dict[str, Any]) -> dict[str, Any]:
     row["has_flight_number_override"] = row.get("override_flight_number") is not None
     if row.get("override_flight_number") is not None:
         row["flight_number"] = row["override_flight_number"]
-    if row.get("actual_time") is None and row.get("override_estimated_time") is not None:
+    if row.get("override_estimated_time") is not None:
         row["estimated_time"] = row["override_estimated_time"]
+        row["actual_time"] = None
     if row.get("override_status_text") is not None:
         row["status_text"] = row["override_status_text"]
     else:

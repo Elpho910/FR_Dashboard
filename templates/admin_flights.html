@@ -89,6 +89,7 @@
                   <div><span class="text-slate-500">API Call-sign:</span> <span class="font-mono text-slate-100">{{ flight.api_callsign or '—' }}</span></div>
                   <div><span class="text-slate-500">Flight ID:</span> <span class="font-mono text-slate-100">{{ flight.flight_id or '—' }}</span></div>
                   <div><span class="text-slate-500">API Estimate:</span> <span class="font-mono text-slate-100">{{ format_unix_local(flight.api_estimated_time) }}</span></div>
+                  <div><span class="text-slate-500">API Actual:</span> <span class="font-mono text-slate-100">{{ format_unix_local(flight.api_actual_time) }}</span></div>
                   <div><span class="text-slate-500">API Status:</span> <span class="text-slate-100">{{ flight.api_status_text or '—' }}</span></div>
                 </div>
               </td>
