@@ -209,7 +209,7 @@ function displayWindowFlights(flights) {
   const windowEndEpoch = nowEpoch + (DISPLAY_WINDOW_HOURS * 3600);
   return flights.filter((flight) => {
     const flightTime = bestFlightTime(flight);
-    return flightTime && flightTime >= nowEpoch && flightTime <= windowEndEpoch;
+    return flightTime && flightTime <= windowEndEpoch;
   });
 }
 
