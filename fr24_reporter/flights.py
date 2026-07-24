@@ -33,6 +33,22 @@ OPERATOR_NAME_ALIASES = {
     "SH": "Sharp Airlines",
     "SHA": "Sharp Airlines",
 }
+SUPPORTED_OPERATOR_NAMES = {
+    "Qantas",
+    "QantasLink",
+    "Regional Express",
+    "Sharp Airlines",
+}
+SUPPORTED_OPERATOR_PREFIXES = (
+    "QF",
+    "QLK",
+    "QFA",
+    "ZL",
+    "RXA",
+    "REX",
+    "SH",
+    "SHA",
+)
 DISPLAY_FLIGHT_PREFIX_ALIASES = {
     "QLK": "QF",
     "QFA": "QF",
@@ -221,6 +237,8 @@ def _normalize_aerodatabox_flights(
     merged: dict[str, FlightInfo] = {}
     for flight in flights:
         info = _parse_aerodatabox_flight(flight, direction, airport_code)
+        if not _flight_is_supported_service(info):
+            continue
         dedupe_key = info.flight_id or (
             f"{info.flight_number}:{info.direction}:{info.scheduled_time or info.estimated_time or info.real_time}"
         )
@@ -452,6 +470,8 @@ def _merge_flights(
     for list_key, payload in payloads:
         for flight in _extract_flights(payload, list_key):
             info = parser(flight, direction, airport_code)
+            if not _flight_is_supported_service(info):
+                continue
             dedupe_key = info.flight_id or (
                 f"{info.flight_number}:{info.direction}:{info.scheduled_time or info.estimated_time or info.real_time}"
             )
@@ -607,6 +627,27 @@ def _friendly_operator_name(value: Any) -> Optional[str]:
     if not cleaned:
         return None
     return OPERATOR_NAME_ALIASES.get(cleaned, cleaned)
+
+
+def _flight_is_supported_service(flight: FlightInfo) -> bool:
+    if flight.airline in SUPPORTED_OPERATOR_NAMES:
+        return True
+
+    for value in (flight.flight_number, flight.callsign):
+        ident = _normalize_flight_identifier(value)
+        if not ident:
+            continue
+        match = re.match(r"^([A-Z]{2,3})", ident)
+        if not match:
+            continue
+        prefix = match.group(1)
+        if prefix in SUPPORTED_OPERATOR_PREFIXES:
+            return True
+        operator = _friendly_operator_name(prefix)
+        if operator in SUPPORTED_OPERATOR_NAMES:
+            return True
+
+    return False
 
 
 def _friendly_airport_name(value: Any) -> Optional[str]:
